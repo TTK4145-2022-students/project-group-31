@@ -4,7 +4,7 @@ import (
 	"time"
 )
 
-func TimerStart(timerChannel chan int, dur int) {
+func TimerStart(timerFinishedChannel chan<- int, dur int) {
 	time.Sleep(time.Duration(dur) * time.Second)
-	timerChannel <- 1
+	timerFinishedChannel <- 1
 }
