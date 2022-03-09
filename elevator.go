@@ -42,9 +42,11 @@ func (e *Elevator) RemoveOrder(btnFloor int, btnType elevio.ButtonType) {
 
 func ElevatorStateMachine(
 	newOrderChan <-chan elevio.ButtonEvent,
-	arrivedAtFloor <-chan int) {
+	arrivedAtFloor <-chan int,
+	obstructionChan <-chan bool) {
 
 	var elevator Elevator
+	obstructed := false
 	//timerFinishedChannel := make(chan int)
 	InitializeElevator(&elevator)
 
@@ -88,22 +90,26 @@ func ElevatorStateMachine(
 			elevator.SetAllLights()
 		case <-doorClose:
 			fmt.Println("door close timer timed out")
-			switch elevator.Behavior {
-			case EB_DoorOpen:
-				elevator.Direction, elevator.Behavior = NextAction(elevator)
-				fmt.Printf("DoorClosed action; \n")
-				fmt.Printf("EB: %+v\n", elevator.Behavior)
-				fmt.Printf("DIR: %+v\n", elevator.Direction)
+			if obstructed {
+				doorClose = time.After(3 * time.Second)
+			} else {
 				switch elevator.Behavior {
 				case EB_DoorOpen:
-					doorClose = time.After(3 * time.Second)
-					clearAtCurrentFloor(&elevator)
-				case EB_Moving:
-					elevio.SetMotorDirection(elevator.Direction)
-					elevio.SetDoorOpenLamp(false)
-				case EB_Idle:
-					elevio.SetDoorOpenLamp(false)
-					elevio.SetMotorDirection(elevator.Direction)
+					elevator.Direction, elevator.Behavior = NextAction(elevator)
+					fmt.Printf("DoorClosed action; \n")
+					fmt.Printf("EB: %+v\n", elevator.Behavior)
+					fmt.Printf("DIR: %+v\n", elevator.Direction)
+					switch elevator.Behavior {
+					case EB_DoorOpen:
+						doorClose = time.After(3 * time.Second)
+						clearAtCurrentFloor(&elevator)
+					case EB_Moving:
+						elevio.SetMotorDirection(elevator.Direction)
+						elevio.SetDoorOpenLamp(false)
+					case EB_Idle:
+						elevio.SetDoorOpenLamp(false)
+						elevio.SetMotorDirection(elevator.Direction)
+					}
 				}
 			}
 		case newFloor := <-arrivedAtFloor:
@@ -126,6 +132,7 @@ func ElevatorStateMachine(
 			case EB_Idle:
 				elevio.SetMotorDirection(elevio.MD_Stop)
 			}
+		case obstructed = <-obstructionChan:
 		}
 	}
 }
