@@ -2,8 +2,8 @@ package main
 
 import (
 	"Driver-go/elevio"
-	//"Driver-go/fsm"
 	"fmt"
+	"fsm"
 )
 
 func main() {
@@ -13,7 +13,7 @@ func main() {
 
 	//var d elevio.MotorDirection = elevio.MD_Down
 	//elevio.SetMotorDirection(d)
-	//go fsm.InitializeElevator()
+	go fsm.InitializeElevator()
 	go InitializeElevator()
 
 	drv_buttons := make(chan elevio.ButtonEvent)
