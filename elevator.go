@@ -43,7 +43,8 @@ func (e *Elevator) RemoveOrder(btnFloor int, btnType elevio.ButtonType) {
 func ElevatorStateMachine(
 	newOrderChan <-chan elevio.ButtonEvent,
 	arrivedAtFloor <-chan int,
-	obstructionChan <-chan bool) {
+	obstructionChan <-chan bool,
+	elevatorChan chan Elevator) {
 
 	var elevator Elevator
 	obstructed := false
@@ -58,6 +59,7 @@ func ElevatorStateMachine(
 		select {
 
 		case btn := <-newOrderChan:
+			fmt.Printf("COST: %+v\n", CalculateCost(elevator, btn))
 			btnFloor := btn.Floor
 			btnType := btn.Button
 			switch elevator.Behavior {
@@ -133,6 +135,7 @@ func ElevatorStateMachine(
 				elevio.SetMotorDirection(elevio.MD_Stop)
 			}
 		case obstructed = <-obstructionChan:
+		case elevatorChan <- elevator:
 		}
 	}
 }

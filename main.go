@@ -18,6 +18,7 @@ func main() {
 	arrivedAtFloor := make(chan int)
 	obstructionChan := make(chan bool)
 	newOrderChan := make(chan elevio.ButtonEvent)
+	elevatorChan := make(chan Elevator)
 	go elevio.PollButtons(drv_buttons)
 	go elevio.PollFloorSensor(drv_floors)
 	go elevio.PollObstructionSwitch(drv_obstr)
@@ -26,8 +27,9 @@ func main() {
 	go ElevatorStateMachine(
 		newOrderChan,
 		arrivedAtFloor,
-		obstructionChan)
-
+		obstructionChan,
+		elevatorChan)
+	go testNetwork(elevatorChan)
 	for {
 		select {
 		case btn := <-drv_buttons:
