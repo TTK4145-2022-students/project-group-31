@@ -1,4 +1,6 @@
-module Driver-go
+module elevator
 
-replace Driver-go => ../project-group-31
-go 1.16
+go 1.17
+
+require Driver-go v0.0.0
+replace Driver-go => ./Driver-go
