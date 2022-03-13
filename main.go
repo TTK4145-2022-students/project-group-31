@@ -29,7 +29,7 @@ func main() {
 		arrivedAtFloor,
 		obstructionChan,
 		elevatorChan)
-	go testNetwork(elevatorChan)
+	go Network(elevatorChan)
 	for {
 		select {
 		case btn := <-drv_buttons:

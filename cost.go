@@ -10,7 +10,7 @@ func CalculateCost(elevator Elevator, newOrder elevio.ButtonEvent) int {
 	return TimeToIdle(elevator)
 }
 
-func ChooseDirection(elevator Elevator) elevio.MotorDirection {
+/*func ChooseDirection(elevator Elevator) elevio.MotorDirection {
 	switch elevator.Direction {
 	case elevio.MD_Up:
 		if RequestsAbove(elevator) {
@@ -45,13 +45,13 @@ func ChooseDirection(elevator Elevator) elevio.MotorDirection {
 	}
 	//Will never be called
 	return elevio.MD_Stop
-}
+}*/
 
 func TimeToIdle(elevator Elevator) int {
 	duration := 0
 	switch elevator.Behavior {
 	case EB_Idle:
-		elevator.Direction = ChooseDirection(elevator)
+		elevator.Direction, _ = NextAction(elevator)
 		if elevator.Direction == elevio.MD_Stop {
 			return duration
 		}
@@ -65,7 +65,7 @@ func TimeToIdle(elevator Elevator) int {
 		if ShouldStop(elevator) {
 			clearAtCurrentFloor(&elevator)
 			duration += ELEVATOR_DOOR_OPEN_COST
-			elevator.Direction = ChooseDirection(elevator)
+			elevator.Direction, _ = NextAction(elevator)
 			if elevator.Direction == elevio.MD_Stop {
 				return duration
 			}
