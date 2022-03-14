@@ -3,7 +3,6 @@ package main
 //	"Driver-go/elevio"
 import (
 	"Driver-go/elevio"
-	"fmt"
 )
 
 func main() {
@@ -15,10 +14,15 @@ func main() {
 	drv_floors := make(chan int)
 	drv_obstr := make(chan bool)
 	drv_stop := make(chan bool)
-	arrivedAtFloor := make(chan int)
-	obstructionChan := make(chan bool)
+
 	newOrderChan := make(chan elevio.ButtonEvent)
 	elevatorChan := make(chan Elevator)
+	elevatorNetworkChan := make(chan ElevatorNetwork)
+	localElevIDChan := make(chan string)
+	elevatorMessageChan := make(chan ElevatorMessage)
+	networkUpdateChan := make(chan ElevatorMessage)
+	updateElevatorChan := make(chan Elevator)
+
 	go elevio.PollButtons(drv_buttons)
 	go elevio.PollFloorSensor(drv_floors)
 	go elevio.PollObstructionSwitch(drv_obstr)
@@ -26,23 +30,16 @@ func main() {
 
 	go ElevatorStateMachine(
 		newOrderChan,
-		arrivedAtFloor,
-		obstructionChan,
-		elevatorChan)
-	go Network(elevatorChan)
-	for {
-		select {
-		case btn := <-drv_buttons:
-			fmt.Printf("%+v\n", btn)
-			newOrderChan <- btn
-			//elevio.SetButtonLamp(a.Button, a.Floor, true)
+		drv_floors,
+		drv_obstr,
+		elevatorChan,
+		updateElevatorChan)
 
-		case a := <-drv_floors:
-			fmt.Printf("%+v\n", a)
-			arrivedAtFloor <- a
-		case a := <-drv_obstr:
-			fmt.Printf("Obstruction", a)
-			obstructionChan <- a
-		}
+	go Network(elevatorChan, localElevIDChan, elevatorMessageChan, networkUpdateChan)
+	go ElevatorNetworkStateMachine(localElevIDChan, elevatorNetworkChan, updateElevatorChan, networkUpdateChan)
+
+	go OrderDistributor(elevatorNetworkChan, drv_buttons, elevatorMessageChan, newOrderChan)
+	for {
+		//:(
 	}
 }

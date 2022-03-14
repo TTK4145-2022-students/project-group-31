@@ -42,10 +42,10 @@ func (e *Elevator) RemoveOrder(btnFloor int, btnType elevio.ButtonType) {
 
 func ElevatorStateMachine(
 	newOrderChan <-chan elevio.ButtonEvent,
-	arrivedAtFloor <-chan int,
-	obstructionChan <-chan bool,
-	elevatorChan chan Elevator) {
-
+	drv_floors <-chan int,
+	drv_obstr <-chan bool,
+	elevatorChan chan<- Elevator,
+	updateElevatorChan <-chan Elevator) {
 	var elevator Elevator
 	obstructed := false
 	//timerFinishedChannel := make(chan int)
@@ -114,7 +114,7 @@ func ElevatorStateMachine(
 					}
 				}
 			}
-		case newFloor := <-arrivedAtFloor:
+		case newFloor := <-drv_floors:
 
 			elevator.Floor = newFloor
 			elevio.SetFloorIndicator(elevator.Floor)
@@ -127,15 +127,17 @@ func ElevatorStateMachine(
 					clearAtCurrentFloor(&elevator)
 					elevator.SetAllLights()
 					elevio.SetDoorOpenLamp(true)
-					//go TimerStart(timerFinishedChannel, DOOR_OPEN_DURATION)
 					doorClose = time.After(3 * time.Second)
 					elevator.Behavior = EB_DoorOpen
 				}
 			case EB_Idle:
 				elevio.SetMotorDirection(elevio.MD_Stop)
 			}
-		case obstructed = <-obstructionChan:
-		case elevatorChan <- elevator:
+			elevatorChan <- elevator
+		case obstructed = <-drv_obstr:
+			/* case elevatorChan <- elevator:*/
+			/* case elev := <-updateElevatorChan:
+			elevator = elev*/
 		}
 	}
 }
