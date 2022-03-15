@@ -5,6 +5,9 @@ import (
 	"Network-go/network/peers"
 	"flag"
 	"fmt"
+	"math/rand"
+	"strconv"
+	"time"
 )
 
 type HelloMsg struct {
@@ -17,8 +20,8 @@ type MessageType int
 const (
 	MT_Acknowledge     MessageType = 0
 	MT_NewOrder        MessageType = 1
-	MT_CompletedOrder  MessageType = 2
-	MT_ArrivedAtFloor  MessageType = 3
+	MT_CompletedOrder  MessageType = 2 //These two could be just update elevator since we don't separate in the logic atm
+	MT_ArrivedAtFloor  MessageType = 3 // maybe should be more actively used to later be able to clear orders
 	MT_InitialElevator MessageType = 4
 )
 
@@ -36,24 +39,12 @@ func Network(
 	elevatorChan <-chan Elevator,
 	localElevIDChan chan<- string,
 	elevatorMessageChan <-chan ElevatorMessage,
-	networkUpdateChan chan<- ElevatorMessage) {
+	networkUpdateChan chan<- NetworkMessage) {
 	// Our id can be anything. Here we pass it on the command line, using
 	//  `go run main.go -id=our_id`
 	var id string
 	flag.StringVar(&id, "id", "", "id of this peer")
 	flag.Parse()
-
-	// ... or alternatively, we can use the local IP address.
-	// (But since we can run multiple programs on the same PC, we also append the
-	//  process ID)
-	/*if id == "" {
-		localIP, err := localip.LocalIP()
-		if err != nil {
-			fmt.Println(err)
-			localIP = "DISCONNECTED"
-		}
-		id = fmt.Sprintf("peer-%s-%d", localIP, os.Getpid())
-	}*/
 
 	// We make a channel for receiving updates on the id's of the peers that are
 	//  alive on the network
@@ -64,10 +55,6 @@ func Network(
 	go peers.Transmitter(2305, id, peerTxEnable)
 	go peers.Receiver(2305, peerUpdateCh)
 
-	// We make channels for sending and receiving our custom data types
-	//helloTx := make(chan HelloMsg)
-	//helloRx := make(chan HelloMsg)
-
 	networkMessageTx := make(chan NetworkMessage)
 	networkMessageRx := make(chan NetworkMessage)
 	// ... and start the transmitter/receiver pair on some port
@@ -76,17 +63,14 @@ func Network(
 	go bcast.Transmitter(1412, networkMessageTx)
 	go bcast.Receiver(1412, networkMessageRx)
 
-	// The example message. We just send one of these every second.
-	/* go func() {
+	peerCount := 0
+	var lastReceivedMsg NetworkMessage
+	var lastTransmittedMsg NetworkMessage
+	var receivedAcks [MAX_NUMBER_OF_ELEVATORS]bool
+	var transmitAgain <-chan time.Time
+	//transmitAgain = time.After(1 * time.Second)
 
-		for {
-			currentElevator := <-elevatorChan
-			networkMessage := NetworkMessage{id, MT_NewOrder, currentElevator}
-			networkMessageTx <- networkMessage
-			time.Sleep(5 * time.Second)
-		}
-	}() */
-
+	//transmitAgain = nil
 	fmt.Println("Started")
 	for {
 		select {
@@ -95,24 +79,55 @@ func Network(
 			fmt.Printf("  Peers:    %q\n", p.Peers)
 			fmt.Printf("  New:      %q\n", p.New)
 			fmt.Printf("  Lost:     %q\n", p.Lost)
-
+			fmt.Println("len:", len(p.Peers))
+			peerCount = len(p.Peers)
 		case a := <-networkMessageRx:
-			fmt.Printf("Received: %#v\n", a)
-			switch a.MessageType {
-			case MT_ArrivedAtFloor:
-				networkUpdateChan <- a.ElevatorMessage
-			case MT_NewOrder:
-				networkUpdateChan <- a.ElevatorMessage
+			//SIMULATE PACKET LOSS, remove if  when no longer testing
+			if rand.Intn(10) == 1 {
+				fmt.Println("PACKET LOST OH NO")
+				break
 			}
+			fmt.Printf("Received: %#v\n", a)
+			AckCount := 0
+			if a.MessageType == MT_Acknowledge {
+				intSenderId, _ := strconv.Atoi(a.SenderId)
+				receivedAcks[intSenderId] = true
+				for _, ack := range receivedAcks {
+					if ack {
+						AckCount += 1
+					}
+				}
+
+				if AckCount == peerCount {
+					networkUpdateChan <- lastReceivedMsg
+					transmitAgain = nil
+				}
+			} else {
+				lastReceivedMsg = a
+				a.MessageType = MT_Acknowledge
+				networkMessageTx <- a
+				transmitAgain = time.After(100 * time.Millisecond)
+			}
+
 		case localElevIDChan <- id:
 			fmt.Printf("Sendt id")
 		case elevMsg := <-elevatorMessageChan:
 			networkMessage := NetworkMessage{id, MT_NewOrder, elevMsg}
+			lastTransmittedMsg = networkMessage
 			networkMessageTx <- networkMessage
+			transmitAgain = time.After(100 * time.Millisecond)
 
 		case elev := <-elevatorChan:
 			networkMessage := NetworkMessage{id, MT_ArrivedAtFloor, ElevatorMessage{id, elev}}
+			lastTransmittedMsg = networkMessage
 			networkMessageTx <- networkMessage
+			transmitAgain = time.After(100 * time.Millisecond)
+		case a := <-transmitAgain:
+			fmt.Printf("Did not receive all acks within 100 millisecond at: %#v\n", a)
+			//Send the last message before sending ack again but ONLY the elevator that last sendt and not everybody
+			//TEMPORARY send again
+			networkMessageTx <- lastTransmittedMsg
 		}
+
 	}
 }

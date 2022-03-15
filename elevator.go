@@ -53,13 +53,11 @@ func ElevatorStateMachine(
 
 	var doorClose <-chan time.Time
 
-	//doorClose = nil
-
 	for {
 		select {
 
 		case btn := <-newOrderChan:
-			fmt.Printf("COST: %+v\n", CalculateCost(elevator, btn))
+			//fmt.Printf("COST: %+v\n", CalculateCost(elevator, btn))
 			btnFloor := btn.Floor
 			btnType := btn.Button
 			switch elevator.Behavior {
@@ -146,5 +144,11 @@ func InitializeElevator(elevator *Elevator) {
 	elevator.Floor = -1 //Where we are
 	elevator.Direction = elevio.MD_Down
 	elevator.Behavior = EB_Idle
+	for f := 0; f < NUM_FLOORS; f++ {
+		for btn := 0; btn < NUM_BUTTONS; btn++ {
+			elevator.RemoveOrder(f, elevio.ButtonType(btn))
+		}
+	}
 	elevio.SetMotorDirection(elevator.Direction)
+
 }

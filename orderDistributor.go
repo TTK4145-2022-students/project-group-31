@@ -9,7 +9,8 @@ func OrderDistributor(
 	elevatorNetworkChan <-chan ElevatorNetwork,
 	drv_buttons <-chan elevio.ButtonEvent,
 	elevatorMessageChan chan<- ElevatorMessage,
-	newOrderChan chan<- elevio.ButtonEvent) {
+	newOrderChan chan<- elevio.ButtonEvent,
+	networkOrder <-chan elevio.ButtonEvent) {
 	for {
 		select {
 		case btn := <-drv_buttons:
@@ -37,9 +38,11 @@ func OrderDistributor(
 				elev.AddOrder(btn.Floor, btn.Button)
 				elevatorMessageChan <- ElevatorMessage{strconv.Itoa(minCostElevID), elev}
 			} else {
+				//SEND to network instead but send to this elev
 				newOrderChan <- btn
 			}
-
+		case order := <-networkOrder:
+			newOrderChan <- order
 		}
 	}
 }
