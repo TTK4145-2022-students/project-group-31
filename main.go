@@ -20,7 +20,7 @@ func main() {
 
 	newOrderChan := make(chan elevio.ButtonEvent)
 	networkOrder := make(chan elevio.ButtonEvent)
-	elevatorChan := make(chan Elevator)
+	elevatorUpdateChan := make(chan NetworkMessage)
 	elevatorNetworkChan := make(chan ElevatorNetwork)
 	localElevIDChan := make(chan string)
 	distributeOrderChan := make(chan ElevatorMessage)
@@ -35,9 +35,9 @@ func main() {
 		newOrderChan,
 		drv_floors,
 		drv_obstr,
-		elevatorChan)
+		elevatorUpdateChan)
 
-	go Network(elevatorChan, localElevIDChan, distributeOrderChan, networkUpdateChan)
+	go Network(elevatorUpdateChan, localElevIDChan, distributeOrderChan, networkUpdateChan)
 	go ElevatorNetworkStateMachine(localElevIDChan, elevatorNetworkChan, networkUpdateChan, networkOrder)
 
 	go OrderDistributor(elevatorNetworkChan, drv_buttons, distributeOrderChan, newOrderChan, networkOrder)

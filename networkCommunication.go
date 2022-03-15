@@ -20,11 +20,13 @@ type MessageType int
 const (
 	MT_Acknowledge     MessageType = 0
 	MT_NewOrder        MessageType = 1
-	MT_CompletedOrder  MessageType = 2 //These two could be just update elevator since we don't separate in the logic atm
-	MT_ArrivedAtFloor  MessageType = 3 // maybe should be more actively used to later be able to clear orders
+	MT_CompletedOrder  MessageType = 2
+	MT_ArrivedAtFloor  MessageType = 3
 	MT_InitialElevator MessageType = 4
+	MT_DoorClosed      MessageType = 5 //MAAAYBE In that case need door open as well. Idea is to be able to inform other elevators of state changes
 )
 
+//Most likely an unneccessary struct and can just implement it in Network Message with ElevatorID
 type ElevatorMessage struct {
 	ElevatorId string
 	Elevator   Elevator
@@ -36,12 +38,12 @@ type NetworkMessage struct {
 }
 
 func Network(
-	elevatorChan <-chan Elevator,
+	elevatorUpdateChan <-chan NetworkMessage,
 	localElevIDChan chan<- string,
 	distributeOrderChan <-chan ElevatorMessage,
 	networkUpdateChan chan<- NetworkMessage) {
 	// Our id can be anything. Here we pass it on the command line, using
-	//  `go run main.go -id=our_id`
+	//  `go run /. -id=our_id`
 	var id string
 	flag.StringVar(&id, "id", "", "id of this peer")
 	flag.Parse()
@@ -117,10 +119,11 @@ func Network(
 			networkMessageTx <- networkMessage
 			transmitAgain = time.After(100 * time.Millisecond)
 
-		case elev := <-elevatorChan:
-			networkMessage := NetworkMessage{id, MT_ArrivedAtFloor, ElevatorMessage{id, elev}}
-			lastTransmittedMsg = networkMessage
-			networkMessageTx <- networkMessage
+		case msg := <-elevatorUpdateChan:
+			msg.SenderId = id
+			msg.ElevatorMessage.ElevatorId = id
+			lastTransmittedMsg = msg
+			networkMessageTx <- msg
 			transmitAgain = time.After(100 * time.Millisecond)
 		case a := <-transmitAgain:
 			fmt.Printf("Did not receive all acks within 100 millisecond at: %#v\n", a)

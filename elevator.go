@@ -44,7 +44,7 @@ func ElevatorStateMachine(
 	newOrderChan <-chan elevio.ButtonEvent,
 	drv_floors <-chan int,
 	drv_obstr <-chan bool,
-	elevatorChan chan<- Elevator) {
+	elevatorUpdateChan chan<- NetworkMessage) {
 	var elevator Elevator
 	obstructed := false
 	//timerFinishedChannel := make(chan int)
@@ -112,7 +112,7 @@ func ElevatorStateMachine(
 				}
 			}
 		case newFloor := <-drv_floors:
-
+			elevatorUpdateChan <- NetworkMessage{"", MT_ArrivedAtFloor, ElevatorMessage{"", elevator}}
 			elevator.Floor = newFloor
 			elevio.SetFloorIndicator(elevator.Floor)
 			switch elevator.Behavior {
@@ -126,15 +126,13 @@ func ElevatorStateMachine(
 					elevio.SetDoorOpenLamp(true)
 					doorClose = time.After(3 * time.Second)
 					elevator.Behavior = EB_DoorOpen
+					elevatorUpdateChan <- NetworkMessage{"", MT_CompletedOrder, ElevatorMessage{"", elevator}}
 				}
 			case EB_Idle:
 				elevio.SetMotorDirection(elevio.MD_Stop)
 			}
-			elevatorChan <- elevator
+
 		case obstructed = <-drv_obstr:
-			/* case elevatorChan <- elevator:*/
-			/* case elev := <-updateElevatorChan:
-			elevator = elev*/
 		}
 	}
 }
