@@ -22,16 +22,12 @@ type ElevatorNetwork struct {
 func ElevatorNetworkStateMachine(
 	localElevIDChan <-chan string,
 	elevatorNetworkChan chan<- ElevatorNetwork,
-	updateElevatorChan chan<- Elevator,
 	networkUpdateChan <-chan NetworkMessage,
 	networkOrder chan<- elevio.ButtonEvent) {
 
 	var elevatorNetwork ElevatorNetwork
 	localElevID := <-localElevIDChan
 	InitializeElevatorNetwork(&elevatorNetwork, localElevID)
-	/* id, _ := strconv.Atoi(localElevID)
-	elevatorNetwork.ElevatorModules[id].Connected = true
-	elevatorNetwork.ElevatorModules[id].Elevator = <-updateElevatorChan */
 	for {
 		select {
 		case elevatorNetworkChan <- elevatorNetwork:
@@ -72,7 +68,4 @@ func InitializeElevatorNetwork(en *ElevatorNetwork, localElevID string) {
 	for i := 0; i < MAX_NUMBER_OF_ELEVATORS; i++ {
 		InitializeElevator(&en.ElevatorModules[i].Elevator)
 	}
-	/* id, _ := strconv.Atoi(localElevID)
-	en.ElevatorModules[id].Connected = true
-	en.ElevatorModules[id] = <-updateElevatorChan */
 }

@@ -23,9 +23,8 @@ func main() {
 	elevatorChan := make(chan Elevator)
 	elevatorNetworkChan := make(chan ElevatorNetwork)
 	localElevIDChan := make(chan string)
-	elevatorMessageChan := make(chan ElevatorMessage)
+	distributeOrderChan := make(chan ElevatorMessage)
 	networkUpdateChan := make(chan NetworkMessage)
-	updateElevatorChan := make(chan Elevator)
 
 	go elevio.PollButtons(drv_buttons)
 	go elevio.PollFloorSensor(drv_floors)
@@ -36,13 +35,12 @@ func main() {
 		newOrderChan,
 		drv_floors,
 		drv_obstr,
-		elevatorChan,
-		updateElevatorChan)
+		elevatorChan)
 
-	go Network(elevatorChan, localElevIDChan, elevatorMessageChan, networkUpdateChan)
-	go ElevatorNetworkStateMachine(localElevIDChan, elevatorNetworkChan, updateElevatorChan, networkUpdateChan, networkOrder)
+	go Network(elevatorChan, localElevIDChan, distributeOrderChan, networkUpdateChan)
+	go ElevatorNetworkStateMachine(localElevIDChan, elevatorNetworkChan, networkUpdateChan, networkOrder)
 
-	go OrderDistributor(elevatorNetworkChan, drv_buttons, elevatorMessageChan, newOrderChan, networkOrder)
+	go OrderDistributor(elevatorNetworkChan, drv_buttons, distributeOrderChan, newOrderChan, networkOrder)
 	for {
 		//:(
 	}

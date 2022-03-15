@@ -38,7 +38,7 @@ type NetworkMessage struct {
 func Network(
 	elevatorChan <-chan Elevator,
 	localElevIDChan chan<- string,
-	elevatorMessageChan <-chan ElevatorMessage,
+	distributeOrderChan <-chan ElevatorMessage,
 	networkUpdateChan chan<- NetworkMessage) {
 	// Our id can be anything. Here we pass it on the command line, using
 	//  `go run main.go -id=our_id`
@@ -111,7 +111,7 @@ func Network(
 
 		case localElevIDChan <- id:
 			fmt.Printf("Sendt id")
-		case elevMsg := <-elevatorMessageChan:
+		case elevMsg := <-distributeOrderChan:
 			networkMessage := NetworkMessage{id, MT_NewOrder, elevMsg}
 			lastTransmittedMsg = networkMessage
 			networkMessageTx <- networkMessage

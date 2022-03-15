@@ -44,8 +44,7 @@ func ElevatorStateMachine(
 	newOrderChan <-chan elevio.ButtonEvent,
 	drv_floors <-chan int,
 	drv_obstr <-chan bool,
-	elevatorChan chan<- Elevator,
-	updateElevatorChan <-chan Elevator) {
+	elevatorChan chan<- Elevator) {
 	var elevator Elevator
 	obstructed := false
 	//timerFinishedChannel := make(chan int)

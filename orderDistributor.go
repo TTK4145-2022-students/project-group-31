@@ -8,7 +8,7 @@ import (
 func OrderDistributor(
 	elevatorNetworkChan <-chan ElevatorNetwork,
 	drv_buttons <-chan elevio.ButtonEvent,
-	elevatorMessageChan chan<- ElevatorMessage,
+	distributeOrderChan chan<- ElevatorMessage,
 	newOrderChan chan<- elevio.ButtonEvent,
 	networkOrder <-chan elevio.ButtonEvent) {
 	for {
@@ -36,7 +36,7 @@ func OrderDistributor(
 				}
 				elev := elevatorNetwork.ElevatorModules[minCostElevID].Elevator
 				elev.AddOrder(btn.Floor, btn.Button)
-				elevatorMessageChan <- ElevatorMessage{strconv.Itoa(minCostElevID), elev}
+				distributeOrderChan <- ElevatorMessage{strconv.Itoa(minCostElevID), elev}
 			} else {
 				//SEND to network instead but send to this elev
 				newOrderChan <- btn
