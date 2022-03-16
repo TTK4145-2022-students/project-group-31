@@ -69,3 +69,15 @@ func InitializeElevatorNetwork(en *ElevatorNetwork, localElevID string) {
 		InitializeElevator(&en.ElevatorModules[i].Elevator)
 	}
 }
+
+/* func (en ElevatorNetwork) SetAllLights() {
+	for id := 0; id < MAX_NUMBER_OF_ELEVATORS; id++ {
+		ID = ElevatorNetwork.ElevatorModules[id]
+		for floor := 0; floor < NUM_FLOORS; floor++ {
+			for btn := elevio.ButtonType(0); btn < 3; btn++ {
+
+				elevio.SetButtonLamp(btn, floor, en.Requests[floor][btn])
+			}
+		}
+	}
+} */
