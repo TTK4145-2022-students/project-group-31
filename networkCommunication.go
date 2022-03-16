@@ -70,6 +70,7 @@ func Network(
 	var lastTransmittedMsg NetworkMessage
 	var receivedAcks [MAX_NUMBER_OF_ELEVATORS]bool
 	var transmitAgain <-chan time.Time
+	AckCount := 0
 	//transmitAgain = time.After(1 * time.Second)
 
 	//transmitAgain = nil
@@ -90,24 +91,25 @@ func Network(
 				break
 			}
 			fmt.Printf("Received: %#v\n", a)
-			AckCount := 0
+
 			if a.MessageType == MT_Acknowledge {
 				intSenderId, _ := strconv.Atoi(a.SenderId)
-				receivedAcks[intSenderId] = true
-				for _, ack := range receivedAcks {
-					if ack {
-						AckCount += 1
-					}
+
+				if !receivedAcks[intSenderId] {
+					receivedAcks[intSenderId] = true
+					AckCount += 1
 				}
 
 				if AckCount == peerCount {
 					networkUpdateChan <- lastReceivedMsg
 					transmitAgain = nil
+					AckCount = 0
 				}
 			} else {
 				lastReceivedMsg = a
 				a.MessageType = MT_Acknowledge
 				networkMessageTx <- a
+				//Remove this? V
 				transmitAgain = time.After(100 * time.Millisecond)
 			}
 
@@ -127,6 +129,7 @@ func Network(
 			transmitAgain = time.After(100 * time.Millisecond)
 		case a := <-transmitAgain:
 			fmt.Printf("Did not receive all acks within 100 millisecond at: %#v\n", a)
+			AckCount = 0
 			//Send the last message before sending ack again but ONLY the elevator that last sendt and not everybody
 			//TEMPORARY send again
 			networkMessageTx <- lastTransmittedMsg

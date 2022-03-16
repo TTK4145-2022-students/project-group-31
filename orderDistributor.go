@@ -26,7 +26,7 @@ func OrderDistributor(
 					}
 
 				}
-				var minCostElevID int
+				minCostElevID:=0
 				min := costs[0]
 				for i, c := range costs {
 					if c < min {
