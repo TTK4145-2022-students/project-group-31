@@ -10,7 +10,8 @@ func OrderDistributor(
 	drv_buttons <-chan elevio.ButtonEvent,
 	distributeOrderChan chan<- ElevatorMessage,
 	newOrderChan chan<- elevio.ButtonEvent,
-	networkOrder <-chan elevio.ButtonEvent) {
+	networkOrder <-chan elevio.ButtonEvent,
+	localElevIDChan <-chan string) {
 	for {
 		select {
 		case btn := <-drv_buttons:
@@ -26,9 +27,11 @@ func OrderDistributor(
 					}
 
 				}
-				minCostElevID:=0
+				minCostElevID := 0
 				min := costs[0]
 				for i, c := range costs {
+					/* fmt.Printf("Cost of elevator %#v", i)
+					fmt.Printf("is: %#v\n", c) */
 					if c < min {
 						min = c
 						minCostElevID = i
@@ -39,7 +42,11 @@ func OrderDistributor(
 				distributeOrderChan <- ElevatorMessage{strconv.Itoa(minCostElevID), elev}
 			} else {
 				//SEND to network instead but send to this elev
-				newOrderChan <- btn
+				//newOrderChan <- btn
+				id, _ := strconv.Atoi(<-localElevIDChan)
+				elev := elevatorNetwork.ElevatorModules[id].Elevator
+				elev.AddOrder(btn.Floor, btn.Button)
+				distributeOrderChan <- ElevatorMessage{strconv.Itoa(id), elev}
 			}
 		case order := <-networkOrder:
 			newOrderChan <- order

@@ -25,13 +25,13 @@ type Elevator struct {
 	Behavior  ElevatorBehavior
 }
 
-func (e Elevator) SetAllLights() {
+/* func (e Elevator) SetAllLights() {
 	for floor := 0; floor < NUM_FLOORS; floor++ {
 		for btn := elevio.ButtonType(0); btn < 3; btn++ {
 			elevio.SetButtonLamp(btn, floor, e.Requests[floor][btn])
 		}
 	}
-}
+} */
 
 func (e *Elevator) AddOrder(btnFloor int, btnType elevio.ButtonType) {
 	e.Requests[btnFloor][btnType] = true
@@ -86,7 +86,7 @@ func ElevatorStateMachine(
 				case EB_Idle:
 				}
 			}
-			elevator.SetAllLights()
+			//elevator.SetAllLights()
 		case <-doorClose:
 			fmt.Println("door close timer timed out")
 			if obstructed {
@@ -122,7 +122,7 @@ func ElevatorStateMachine(
 					elevio.SetMotorDirection(elevio.MD_Stop)
 					//Opendoor and Start timer
 					clearAtCurrentFloor(&elevator)
-					elevator.SetAllLights()
+					//elevator.SetAllLights()
 					elevio.SetDoorOpenLamp(true)
 					doorClose = time.After(3 * time.Second)
 					elevator.Behavior = EB_DoorOpen

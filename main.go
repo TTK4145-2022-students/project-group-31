@@ -3,6 +3,7 @@ package main
 //	"Driver-go/elevio"
 import (
 	"Driver-go/elevio"
+	"Network-go/network/peers"
 	"math/rand"
 	"time"
 )
@@ -26,6 +27,8 @@ func main() {
 	distributeOrderChan := make(chan ElevatorMessage)
 	networkUpdateChan := make(chan NetworkMessage)
 
+	updateConnectionsChan := make(chan peers.PeerUpdate)
+
 	go elevio.PollButtons(drv_buttons)
 	go elevio.PollFloorSensor(drv_floors)
 	go elevio.PollObstructionSwitch(drv_obstr)
@@ -37,10 +40,10 @@ func main() {
 		drv_obstr,
 		elevatorUpdateChan)
 
-	go Network(elevatorUpdateChan, localElevIDChan, distributeOrderChan, networkUpdateChan)
-	go ElevatorNetworkStateMachine(localElevIDChan, elevatorNetworkChan, networkUpdateChan, networkOrder)
+	go Network(elevatorUpdateChan, localElevIDChan, distributeOrderChan, networkUpdateChan, updateConnectionsChan)
+	go ElevatorNetworkStateMachine(localElevIDChan, elevatorNetworkChan, networkUpdateChan, networkOrder, updateConnectionsChan)
 
-	go OrderDistributor(elevatorNetworkChan, drv_buttons, distributeOrderChan, newOrderChan, networkOrder)
+	go OrderDistributor(elevatorNetworkChan, drv_buttons, distributeOrderChan, newOrderChan, networkOrder, localElevIDChan)
 	for {
 		//:(
 	}

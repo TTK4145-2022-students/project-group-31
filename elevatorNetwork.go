@@ -2,6 +2,7 @@ package main
 
 import (
 	"Driver-go/elevio"
+	"Network-go/network/peers"
 	"fmt"
 	"strconv"
 )
@@ -23,7 +24,8 @@ func ElevatorNetworkStateMachine(
 	localElevIDChan <-chan string,
 	elevatorNetworkChan chan<- ElevatorNetwork,
 	networkUpdateChan <-chan NetworkMessage,
-	networkOrder chan<- elevio.ButtonEvent) {
+	networkOrder chan<- elevio.ButtonEvent,
+	updateConnectionsChan <-chan peers.PeerUpdate) {
 
 	var elevatorNetwork ElevatorNetwork
 	localElevID := <-localElevIDChan
@@ -55,12 +57,38 @@ func ElevatorNetworkStateMachine(
 							}
 						}
 					}
+				case MT_CompletedOrder:
+					fmt.Println("Completed Order")
+					//var newOrder elevio.ButtonEvent
+					//Compare and find new order
+					for f := 0; f < NUM_FLOORS; f++ {
+						for btn := 0; btn < NUM_BUTTONS; btn++ {
+							if !e.Requests[f][btn] && elevatorNetwork.ElevatorModules[elevID].Elevator.Requests[f][btn] {
+								//Send order
+								fmt.Printf("Found completed order from network at: %#v", f)
+								fmt.Printf("and button type at: %#v\n", elevio.ButtonType(btn))
+								/* newOrder := elevio.ButtonEvent{f, elevio.ButtonType(btn)} //Why warning??
+								networkOrder <- newOrder */
+							}
+						}
+					}
 				}
-				//Update ElevNetwork
-				elevatorNetwork.ElevatorModules[elevID].Elevator = e
+			}
+			//Update ElevNetwork
+			elevatorNetwork.ElevatorModules[elevID].Elevator = e
+			elevatorNetwork.SetAllLights(localElevID)
+		case p := <-updateConnectionsChan:
+			if p.New != "" {
+				id, _ := strconv.Atoi(p.New)
+				//elevatorNetwork.ElevatorModules[id].Connected = true
+				fmt.Printf("Elevator: %#v is now online\n", id)
+			}
+			for _, lost := range p.Lost {
+				id, _ := strconv.Atoi(lost)
+				//elevatorNetwork.ElevatorModules[id].Connected = false
+				fmt.Printf("Elevator: %#v is now offline\n", id)
 			}
 		}
-
 	}
 }
 
@@ -70,14 +98,29 @@ func InitializeElevatorNetwork(en *ElevatorNetwork, localElevID string) {
 	}
 }
 
-/* func (en ElevatorNetwork) SetAllLights() {
+func (en ElevatorNetwork) SetAllLights(localElevID string) {
+	//Create lights matrix
+	var lights [NUM_FLOORS][NUM_BUTTONS]bool
 	for id := 0; id < MAX_NUMBER_OF_ELEVATORS; id++ {
-		ID = ElevatorNetwork.ElevatorModules[id]
+		elevator := en.ElevatorModules[id].Elevator
 		for floor := 0; floor < NUM_FLOORS; floor++ {
-			for btn := elevio.ButtonType(0); btn < 3; btn++ {
-
-				elevio.SetButtonLamp(btn, floor, en.Requests[floor][btn])
+			for btn := elevio.ButtonType(0); btn < NUM_BUTTONS; btn++ {
+				/* if elevator.Requests[floor][btn] {
+					lights[floor][btn] = true
+				} else if elevator.Requests[floor][NUM_BUTTONS-1] {
+					elevio.SetButtonLamp(NUM_BUTTONS-1, floor, elevator.Requests[floor][NUM_BUTTONS-1])
+				} */
+				lights[floor][btn] = lights[floor][btn] || elevator.Requests[floor][btn]
+				if strconv.Itoa(id) == localElevID && btn == elevio.BT_Cab {
+					elevio.SetButtonLamp(btn, floor, lights[floor][btn])
+				}
 			}
 		}
 	}
-} */
+	//Turn on or off lights accordingly
+	for floor := 0; floor < NUM_FLOORS; floor++ {
+		for btn := elevio.ButtonType(0); btn < NUM_BUTTONS-1; btn++ {
+			elevio.SetButtonLamp(btn, floor, lights[floor][btn])
+		}
+	}
+}

@@ -41,7 +41,8 @@ func Network(
 	elevatorUpdateChan <-chan NetworkMessage,
 	localElevIDChan chan<- string,
 	distributeOrderChan <-chan ElevatorMessage,
-	networkUpdateChan chan<- NetworkMessage) {
+	networkUpdateChan chan<- NetworkMessage,
+	updateConnectionsChan chan<- peers.PeerUpdate) {
 	// Our id can be anything. Here we pass it on the command line, using
 	//  `go run /. -id=our_id`
 	var id string
@@ -83,6 +84,7 @@ func Network(
 			fmt.Printf("  Lost:     %q\n", p.Lost)
 			fmt.Println("len:", len(p.Peers))
 			peerCount = len(p.Peers)
+			updateConnectionsChan <- p
 		case a := <-networkMessageRx:
 			//SIMULATE PACKET LOSS, remove if  when no longer testing
 			if rand.Intn(10) == 1 {
@@ -90,6 +92,7 @@ func Network(
 				break
 			}
 			fmt.Printf("Received: %#v\n", a)
+			//ACK DOES STILL NOT WORK
 			AckCount := 0
 			if a.MessageType == MT_Acknowledge {
 				intSenderId, _ := strconv.Atoi(a.SenderId)
@@ -112,7 +115,7 @@ func Network(
 			}
 
 		case localElevIDChan <- id:
-			fmt.Printf("Sendt id")
+			fmt.Printf("Sendt id\n")
 		case elevMsg := <-distributeOrderChan:
 			networkMessage := NetworkMessage{id, MT_NewOrder, elevMsg}
 			lastTransmittedMsg = networkMessage
