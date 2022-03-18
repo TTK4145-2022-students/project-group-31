@@ -4,7 +4,9 @@ package main
 import (
 	"Driver-go/elevio"
 	"Network-go/network/peers"
+	"fmt"
 	"math/rand"
+	"os"
 	"time"
 )
 
@@ -12,7 +14,14 @@ func main() {
 	//UNNECCESARY RAND
 	rand.Seed(time.Now().UnixNano())
 	numFloors := 4
-	elevio.Init("localhost:15657", numFloors)
+	fmt.Println(os.Args)
+	if len(os.Args) > 2 {
+		port := os.Args[2]
+		addr := "localhost:" + port
+		elevio.Init(addr, numFloors)
+	} else {
+		elevio.Init("localhost:15657", numFloors)
+	}
 
 	drv_buttons := make(chan elevio.ButtonEvent)
 	drv_floors := make(chan int)
@@ -44,7 +53,7 @@ func main() {
 	go ElevatorNetworkStateMachine(localElevIDChan, elevatorNetworkChan, networkUpdateChan, networkOrder, updateConnectionsChan)
 
 	go OrderDistributor(elevatorNetworkChan, drv_buttons, distributeOrderChan, newOrderChan, networkOrder, localElevIDChan)
-	for {
-		//:(
+	select {
+	//:(
 	}
 }

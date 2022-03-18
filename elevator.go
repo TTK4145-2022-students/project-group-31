@@ -112,8 +112,8 @@ func ElevatorStateMachine(
 				}
 			}
 		case newFloor := <-drv_floors:
-			elevatorUpdateChan <- NetworkMessage{"", MT_ArrivedAtFloor, ElevatorMessage{"", elevator}}
 			elevator.Floor = newFloor
+			elevatorUpdateChan <- NetworkMessage{"", MT_ArrivedAtFloor, ElevatorMessage{"", elevator}}
 			elevio.SetFloorIndicator(elevator.Floor)
 			switch elevator.Behavior {
 			case EB_Moving:
@@ -138,7 +138,7 @@ func ElevatorStateMachine(
 }
 
 func InitializeElevator(elevator *Elevator) {
-	elevator.Floor = -1 //Where we are
+	elevator.Floor = 0 //Where we are
 	elevator.Direction = elevio.MD_Down
 	elevator.Behavior = EB_Idle
 	for f := 0; f < NUM_FLOORS; f++ {
