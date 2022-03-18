@@ -25,13 +25,13 @@ type Elevator struct {
 	Behavior  ElevatorBehavior
 }
 
-/* func (e Elevator) SetAllLights() {
+func (e Elevator) SetAllLights() {
 	for floor := 0; floor < NUM_FLOORS; floor++ {
 		for btn := elevio.ButtonType(0); btn < 3; btn++ {
 			elevio.SetButtonLamp(btn, floor, e.Requests[floor][btn])
 		}
 	}
-} */
+}
 
 func (e *Elevator) AddOrder(btnFloor int, btnType elevio.ButtonType) {
 	e.Requests[btnFloor][btnType] = true
@@ -44,7 +44,9 @@ func ElevatorStateMachine(
 	newOrderChan <-chan elevio.ButtonEvent,
 	drv_floors <-chan int,
 	drv_obstr <-chan bool,
-	elevatorUpdateChan chan<- NetworkMessage) {
+	elevatorUpdateChan chan<- Elevator,
+	updateElevatorChan <-chan Elevator,
+	reconnectedElevChan chan<- Elevator) {
 	var elevator Elevator
 	obstructed := false
 	//timerFinishedChannel := make(chan int)
@@ -86,7 +88,8 @@ func ElevatorStateMachine(
 				case EB_Idle:
 				}
 			}
-			//elevator.SetAllLights()
+			elevatorUpdateChan <- elevator
+			elevator.SetAllLights()
 		case <-doorClose:
 			fmt.Println("door close timer timed out")
 			if obstructed {
@@ -110,10 +113,11 @@ func ElevatorStateMachine(
 						elevio.SetMotorDirection(elevator.Direction)
 					}
 				}
+				elevatorUpdateChan <- elevator
 			}
+
 		case newFloor := <-drv_floors:
 			elevator.Floor = newFloor
-			elevatorUpdateChan <- NetworkMessage{"", MT_ArrivedAtFloor, ElevatorMessage{"", elevator}}
 			elevio.SetFloorIndicator(elevator.Floor)
 			switch elevator.Behavior {
 			case EB_Moving:
@@ -122,17 +126,23 @@ func ElevatorStateMachine(
 					elevio.SetMotorDirection(elevio.MD_Stop)
 					//Opendoor and Start timer
 					clearAtCurrentFloor(&elevator)
-					//elevator.SetAllLights()
+					elevator.SetAllLights()
 					elevio.SetDoorOpenLamp(true)
 					doorClose = time.After(3 * time.Second)
 					elevator.Behavior = EB_DoorOpen
-					elevatorUpdateChan <- NetworkMessage{"", MT_CompletedOrder, ElevatorMessage{"", elevator}}
+
 				}
 			case EB_Idle:
 				elevio.SetMotorDirection(elevio.MD_Stop)
 			}
+			elevatorUpdateChan <- elevator
 
 		case obstructed = <-drv_obstr:
+			fmt.Println("Obstructed")
+		case elevator = <-updateElevatorChan:
+			fmt.Println("Received update")
+			//elevator.Direction, elevator.Behavior = NextAction(elevator)
+		case reconnectedElevChan <- elevator:
 		}
 	}
 }

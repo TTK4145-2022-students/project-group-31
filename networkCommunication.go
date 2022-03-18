@@ -5,8 +5,6 @@ import (
 	"Network-go/network/peers"
 	"flag"
 	"fmt"
-	"strconv"
-	"time"
 )
 
 type HelloMsg struct {
@@ -17,12 +15,8 @@ type HelloMsg struct {
 type MessageType int
 
 const (
-	MT_Acknowledge     MessageType = 0
-	MT_NewOrder        MessageType = 1
-	MT_CompletedOrder  MessageType = 2
-	MT_ArrivedAtFloor  MessageType = 3
-	MT_InitialElevator MessageType = 4
-	MT_DoorClosed      MessageType = 5 //MAAAYBE In that case need door open as well. Idea is to be able to inform other elevators of state changes
+	MT_Acknowledge    MessageType = 0
+	MT_UpdateElevator MessageType = 1
 )
 
 //Most likely an unneccessary struct and can just implement it in Network Message with ElevatorID
@@ -37,10 +31,10 @@ type NetworkMessage struct {
 }
 
 func Network(
-	elevatorUpdateChan <-chan NetworkMessage,
+	elevatorUpdateChan <-chan Elevator,
 	localElevIDChan chan<- string,
 	distributeOrderChan <-chan ElevatorMessage,
-	networkUpdateChan chan<- NetworkMessage,
+	networkUpdateChan chan<- ElevatorMessage,
 	updateConnectionsChan chan<- peers.PeerUpdate) {
 	// Our id can be anything. Here we pass it on the command line, using
 	//  `go run /. -id=our_id`
@@ -65,12 +59,12 @@ func Network(
 	go bcast.Transmitter(1412, networkMessageTx)
 	go bcast.Receiver(1412, networkMessageRx)
 
-	peerCount := 0
-	/* AckCount := 0 */
+	/* peerCount := 0
+	AckCount := 0
 	var lastReceivedMsg NetworkMessage
 	var lastTransmittedMsg NetworkMessage
 	var receivedAcks [MAX_NUMBER_OF_ELEVATORS]bool
-	var transmitAgain <-chan time.Time
+	var transmitAgain <-chan time.Time */
 	//transmitAgain = time.After(1 * time.Second)
 
 	//transmitAgain = nil
@@ -83,62 +77,24 @@ func Network(
 			fmt.Printf("  New:      %q\n", p.New)
 			fmt.Printf("  Lost:     %q\n", p.Lost)
 			fmt.Println("len:", len(p.Peers))
-			peerCount = len(p.Peers)
+			//peerCount = len(p.Peers)
 			updateConnectionsChan <- p
-		case a := <-networkMessageRx:
-			//SIMULATE PACKET LOSS, remove if  when no longer testing
-			/* if rand.Intn(10) == 1 {
-				fmt.Println("PACKET LOST OH NO")
-				break
-			} */
-			fmt.Printf("Received: %#v\n", a)
-			//ACK DOES STILL NOT WORK
-			AckCount := 0
-			if a.MessageType == MT_Acknowledge {
-				intSenderId, _ := strconv.Atoi(a.SenderId)
-				receivedAcks[intSenderId] = true
-				for _, ack := range receivedAcks {
-					if ack {
-						AckCount += 1
-					}
-				}
-
-				if AckCount == peerCount {
-					fmt.Println("Enough Counts")
-					networkUpdateChan <- lastReceivedMsg
-					transmitAgain = nil
-					AckCount = 0
-					for i := range receivedAcks {
-						receivedAcks[i] = false
-					}
-				}
-			} else {
-				lastReceivedMsg = a
-				a.MessageType = MT_Acknowledge
-				networkMessageTx <- a
-				transmitAgain = time.After(100 * time.Millisecond)
-			}
-
+		case rxMsg := <-networkMessageRx:
+			/* fmt.Printf("Received: %#v\n", rxMsg) */
+			fmt.Printf("Received\n")
+			networkUpdateChan <- rxMsg.ElevatorMessage
+		case elevator := <-elevatorUpdateChan:
+			txMsg := NetworkMessage{id, MT_UpdateElevator, ElevatorMessage{id, elevator}}
+			networkMessageTx <- txMsg
+			/* fmt.Printf("Sendt: %#v\n", txMsg) */
+			fmt.Printf("Sendt\n")
+		case elevatorMsg := <-distributeOrderChan:
+			txMsg := NetworkMessage{id, MT_UpdateElevator, elevatorMsg}
+			networkMessageTx <- txMsg
+			/* fmt.Printf("Sendt: %#v\n", txMsg) */
+			fmt.Printf("Sendt\n")
 		case localElevIDChan <- id:
 			fmt.Printf("Sendt id\n")
-		case elevMsg := <-distributeOrderChan:
-			networkMessage := NetworkMessage{id, MT_NewOrder, elevMsg}
-			lastTransmittedMsg = networkMessage
-			networkMessageTx <- networkMessage
-			transmitAgain = time.After(100 * time.Millisecond)
-
-		case msg := <-elevatorUpdateChan:
-			msg.SenderId = id
-			msg.ElevatorMessage.ElevatorId = id
-			lastTransmittedMsg = msg
-			networkMessageTx <- msg
-			transmitAgain = time.After(100 * time.Millisecond)
-		case a := <-transmitAgain:
-			fmt.Printf("Did not receive all acks within 100 millisecond at: %#v\n", a)
-			//Send the last message before sending ack again but ONLY the elevator that last sendt and not everybody
-			//TEMPORARY send again
-			networkMessageTx <- lastTransmittedMsg
 		}
-
 	}
 }

@@ -30,13 +30,17 @@ func main() {
 
 	newOrderChan := make(chan elevio.ButtonEvent)
 	networkOrder := make(chan elevio.ButtonEvent)
-	elevatorUpdateChan := make(chan NetworkMessage)
+	reconnectedElevChan := make(chan Elevator)
+	elevatorUpdateChan := make(chan Elevator)
 	elevatorNetworkChan := make(chan ElevatorNetwork)
+
+	redistributeOrdersChan := make(chan ElevatorNetwork)
 	localElevIDChan := make(chan string)
 	distributeOrderChan := make(chan ElevatorMessage)
-	networkUpdateChan := make(chan NetworkMessage)
+	networkUpdateChan := make(chan ElevatorMessage)
 
 	updateConnectionsChan := make(chan peers.PeerUpdate)
+	updateElevatorChan := make(chan Elevator)
 
 	go elevio.PollButtons(drv_buttons)
 	go elevio.PollFloorSensor(drv_floors)
@@ -47,12 +51,22 @@ func main() {
 		newOrderChan,
 		drv_floors,
 		drv_obstr,
-		elevatorUpdateChan)
+		elevatorUpdateChan,
+		updateElevatorChan,
+		reconnectedElevChan)
 
 	go Network(elevatorUpdateChan, localElevIDChan, distributeOrderChan, networkUpdateChan, updateConnectionsChan)
-	go ElevatorNetworkStateMachine(localElevIDChan, elevatorNetworkChan, networkUpdateChan, networkOrder, updateConnectionsChan)
+	go ElevatorNetworkStateMachine(
+		localElevIDChan,
+		elevatorNetworkChan,
+		networkUpdateChan,
+		networkOrder,
+		updateConnectionsChan,
+		updateElevatorChan,
+		reconnectedElevChan,
+		redistributeOrdersChan)
 
-	go OrderDistributor(elevatorNetworkChan, drv_buttons, distributeOrderChan, newOrderChan, networkOrder, localElevIDChan)
+	go OrderDistributor(elevatorNetworkChan, drv_buttons, distributeOrderChan, newOrderChan, networkOrder, localElevIDChan, redistributeOrdersChan)
 	select {
 	//:(
 	}
