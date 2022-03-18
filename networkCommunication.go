@@ -5,7 +5,6 @@ import (
 	"Network-go/network/peers"
 	"flag"
 	"fmt"
-	"math/rand"
 	"strconv"
 	"time"
 )
@@ -67,6 +66,7 @@ func Network(
 	go bcast.Receiver(1412, networkMessageRx)
 
 	peerCount := 0
+	/* AckCount := 0 */
 	var lastReceivedMsg NetworkMessage
 	var lastTransmittedMsg NetworkMessage
 	var receivedAcks [MAX_NUMBER_OF_ELEVATORS]bool
@@ -87,10 +87,10 @@ func Network(
 			updateConnectionsChan <- p
 		case a := <-networkMessageRx:
 			//SIMULATE PACKET LOSS, remove if  when no longer testing
-			if rand.Intn(10) == 1 {
+			/* if rand.Intn(10) == 1 {
 				fmt.Println("PACKET LOST OH NO")
 				break
-			}
+			} */
 			fmt.Printf("Received: %#v\n", a)
 			//ACK DOES STILL NOT WORK
 			AckCount := 0
@@ -104,8 +104,13 @@ func Network(
 				}
 
 				if AckCount == peerCount {
+					fmt.Println("Enough Counts")
 					networkUpdateChan <- lastReceivedMsg
 					transmitAgain = nil
+					AckCount = 0
+					for i := range receivedAcks {
+						receivedAcks[i] = false
+					}
 				}
 			} else {
 				lastReceivedMsg = a

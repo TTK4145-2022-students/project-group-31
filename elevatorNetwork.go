@@ -77,19 +77,18 @@ func ElevatorNetworkStateMachine(
 			elevatorNetwork.SetAllLights(localElevID)
 		//Elevator becomes online or offline
 		case p := <-updateConnectionsChan:
-			/* if len(p.Peers)==1{
-				elevatorNetwork.OnlyLocal = false
+			if len(p.Peers) == 1 {
+				elevatorNetwork.OnlyLocal = true
 				fmt.Printf("ElevatorNetwork is now running in only local mode\n")
-			} */
+			} else if len(p.Peers) > 1 {
+				elevatorNetwork.OnlyLocal = false
+				fmt.Printf("ElevatorNetwork is now online\n")
+			}
 			if p.New != "" {
 				id, _ := strconv.Atoi(p.New)
 				elevatorNetwork.ElevatorModules[id].Connected = true
 				fmt.Printf("Elevator: %#v is now online\n", id)
-				if p.New != localElevID {
-					elevatorNetwork.OnlyLocal = true
-					fmt.Printf("ElevatorNetwork is now online\n")
-				}
-				// If new 
+				// If new
 			}
 			for _, lostElevID := range p.Lost {
 				id, _ := strconv.Atoi(lostElevID)

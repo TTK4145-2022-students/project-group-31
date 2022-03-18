@@ -35,8 +35,8 @@ func OrderDistributor(
 					minCostElevID := 0
 					min := costs[0]
 					for i, c := range costs {
-						/* fmt.Printf("Cost of elevator %#v", i)
-						fmt.Printf("is: %#v\n", c) */
+						fmt.Printf("Cost of elevator %#v", i)
+						fmt.Printf("is: %#v\n", c)
 						if c < min {
 							min = c
 							minCostElevID = i
