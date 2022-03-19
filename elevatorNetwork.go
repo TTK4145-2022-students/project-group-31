@@ -23,26 +23,31 @@ type ElevatorNetwork struct {
 func ElevatorNetworkStateMachine(
 	localElevIDChan <-chan string,
 	elevatorNetworkChan chan<- ElevatorNetwork,
-	networkUpdateChan <-chan ElevatorMessage,
+	networkUpdateChan <-chan NetworkMessage,
 	networkOrder chan<- elevio.ButtonEvent,
 	updateConnectionsChan <-chan peers.PeerUpdate,
 	updateElevatorChan chan<- Elevator,
 	reconnectedElevChan <-chan Elevator,
-	redistributeOrdersChan chan<- ElevatorNetwork) {
+	redistributeOrdersChan chan<- ElevatorNetwork,
+	updateNewElevatorChan chan<- ElevatorMessage) {
 
 	var elevatorNetwork ElevatorNetwork
+
 	localElevID := <-localElevIDChan
-	elevatorNetwork.OnlyLocal = true //Default behavior
-	//InitializeElevatorNetwork(&elevatorNetwork, localElevID)
+	localElevIDInt, _ := strconv.Atoi(localElevID)
+
+	initializeElevatorNetwork := true
+
 	for {
 		select {
 		case elevatorNetworkChan <- elevatorNetwork:
 			fmt.Println("Sendt EN")
+
 		case ntwrkMsg := <-networkUpdateChan:
 			fmt.Println("Received elevMSG")
-			elevID, _ := strconv.Atoi(ntwrkMsg.ElevatorId)
-			e := ntwrkMsg.Elevator
-			if ntwrkMsg.ElevatorId == localElevID {
+			elevID, _ := strconv.Atoi(ntwrkMsg.ElevatorMessage.ElevatorId)
+			e := ntwrkMsg.ElevatorMessage.Elevator
+			if ntwrkMsg.ElevatorMessage.ElevatorId == localElevID {
 				for f := 0; f < NUM_FLOORS; f++ {
 					for btn := 0; btn < NUM_BUTTONS; btn++ {
 						if e.Requests[f][btn] && !elevatorNetwork.ElevatorModules[elevID].Elevator.Requests[f][btn] {
@@ -54,12 +59,15 @@ func ElevatorNetworkStateMachine(
 						}
 					}
 				}
-				updateElevatorChan <- ntwrkMsg.Elevator
+				if ntwrkMsg.SenderId != localElevID {
+					updateElevatorChan <- ntwrkMsg.ElevatorMessage.Elevator
+				}
 			}
 			//Update ElevNetwork
 			elevatorNetwork.ElevatorModules[elevID].Elevator = e
 			elevatorNetwork.SetAllHallLights(localElevID)
 			PrintElevatorNetwork(elevatorNetwork)
+
 		//Elevator becomes online or offline
 		case p := <-updateConnectionsChan:
 			if len(p.Peers) == 0 {
@@ -67,35 +75,55 @@ func ElevatorNetworkStateMachine(
 				fmt.Printf("ElevatorNetwork is now running in only local mode\n")
 			} else {
 				elevatorNetwork.OnlyLocal = false
-				//id, _ := strconv.Atoi(p.New)
-				//elevatorNetwork.ElevatorModules[id].Elevator = <-reconnectedElevChan
 				fmt.Printf("ElevatorNetwork is now online\n")
 			}
-			if p.New != "" {
-				if p.New == localElevID && len(p.Peers) != 1 {
-					//Update myself and Update my perception of the others
-					fmt.Println("Update myself from other nodes")
+			if initializeElevatorNetwork {
+				initializeElevatorNetwork = false
+
+				fmt.Println("INIT NETWORK")
+				InitializeElevatorNetwork(&elevatorNetwork)
+				updateElevatorChan <- elevatorNetwork.ElevatorModules[localElevIDInt].Elevator
+			}
+			//If you are not the new one send all uninit elevators
+			if p.New != localElevID && p.New != "" {
+				fmt.Println("Found new other elevator")
+				for id := 0; id < MAX_NUMBER_OF_ELEVATORS; id++ {
+					elevator := elevatorNetwork.ElevatorModules[id].Elevator
+					if !IsInitializedElevator(elevator) {
+						updateNewElevatorChan <- ElevatorMessage{Elevator: elevator, ElevatorId: strconv.Itoa(id)}
+						fmt.Println("Sendt new elevator: ", id)
+					}
 				}
 				id, _ := strconv.Atoi(p.New)
 				elevatorNetwork.ElevatorModules[id].Connected = true
-				fmt.Printf("Elevator: %#v is now online\n", id)
-				// If new
+			} else if p.New != "" { //IF you are the new one send only yourself if you have info
+				fmt.Println("Found new my self elevator")
+				elevator := elevatorNetwork.ElevatorModules[localElevIDInt].Elevator
+				id, _ := strconv.Atoi(p.New)
+				elevatorNetwork.ElevatorModules[id].Connected = true
+				if !IsInitializedElevator(elevator) {
+					updateNewElevatorChan <- ElevatorMessage{Elevator: elevator, ElevatorId: localElevID}
+					fmt.Println("Sendt new myself elevator: ")
+				}
 			}
+
 			for _, lostElevID := range p.Lost {
 				id, _ := strconv.Atoi(lostElevID)
 				elevatorNetwork.ElevatorModules[id].Connected = false
 				fmt.Printf("Elevator: %#v is now offline\n", id)
-				redistributeOrdersChan <- elevatorNetwork
+				//redistributeOrdersChan <- elevatorNetwork
 			}
 			PrintElevatorNetwork(elevatorNetwork)
 		}
 	}
 }
 
-func InitializeElevatorNetwork(en *ElevatorNetwork, localElevID string) {
+func InitializeElevatorNetwork(en *ElevatorNetwork) {
+	en.OnlyLocal = true //Default behavior
 	for i := 0; i < MAX_NUMBER_OF_ELEVATORS; i++ {
 		InitializeElevator(&en.ElevatorModules[i].Elevator)
 	}
+	elevio.SetMotorDirection(elevio.MD_Down) //BAD CODE QUALITY I THINK
 }
 
 func (en ElevatorNetwork) SetAllHallLights(localElevID string) {
@@ -136,6 +164,9 @@ func PrintElevatorNetwork(en ElevatorNetwork) {
 	for id := 0; id < MAX_NUMBER_OF_ELEVATORS; id++ {
 		fmt.Println("Elevator: ", id)
 		elevator := en.ElevatorModules[id].Elevator
+		fmt.Printf("| B: %+v", elevator.Behavior)
+		fmt.Printf(" | D: %+v", elevator.Direction)
+		fmt.Printf(" | F: %+v |\n", elevator.Floor)
 		fmt.Println("   UP       DOWN     CAB")
 		for floor := 0; floor < NUM_FLOORS; floor++ {
 			fmt.Printf("|")
@@ -144,5 +175,27 @@ func PrintElevatorNetwork(en ElevatorNetwork) {
 			}
 			fmt.Printf("|\n")
 		}
+	}
+}
+
+func IsInitializedElevator(elevator Elevator) bool {
+	var initElevator Elevator
+	InitializeElevator(&initElevator)
+
+	allOrdersEqual := true
+	for floor := 0; floor < NUM_FLOORS; floor++ {
+		for btn := elevio.ButtonType(0); btn < NUM_BUTTONS; btn++ {
+			if initElevator.Requests[floor][btn] != elevator.Requests[floor][btn] {
+				allOrdersEqual = false
+			}
+		}
+	}
+	if elevator.Behavior == initElevator.Behavior &&
+		elevator.Direction == initElevator.Direction &&
+		elevator.Floor == initElevator.Floor &&
+		allOrdersEqual {
+		return true
+	} else {
+		return false
 	}
 }

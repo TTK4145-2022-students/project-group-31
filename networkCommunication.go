@@ -30,20 +30,19 @@ type NetworkMessage struct {
 	ElevatorMessage ElevatorMessage
 }
 
-func Network(
+func NetworkCommunication(
 	elevatorUpdateChan <-chan Elevator,
 	localElevIDChan chan<- string,
 	distributeOrderChan <-chan ElevatorMessage,
-	networkUpdateChan chan<- ElevatorMessage,
-	updateConnectionsChan chan<- peers.PeerUpdate) {
+	networkUpdateChan chan<- NetworkMessage,
+	updateConnectionsChan chan<- peers.PeerUpdate,
+	updateNewElevatorChan <-chan ElevatorMessage) {
 	// Our id can be anything. Here we pass it on the command line, using
 	//  `go run /. -id=our_id`
 	var id string
 	flag.StringVar(&id, "id", "", "id of this peer")
 	flag.Parse()
 
-	// We make a channel for receiving updates on the id's of the peers that are
-	//  alive on the network
 	peerUpdateCh := make(chan peers.PeerUpdate)
 	// We can disable/enable the transmitter after it has been started.
 	// This could be used to signal that we are somehow "unavailable".
@@ -81,18 +80,23 @@ func Network(
 			updateConnectionsChan <- p
 		case rxMsg := <-networkMessageRx:
 			/* fmt.Printf("Received: %#v\n", rxMsg) */
-			fmt.Printf("Received\n")
-			networkUpdateChan <- rxMsg.ElevatorMessage
+			fmt.Printf("Received network message\n")
+			networkUpdateChan <- rxMsg
 		case elevator := <-elevatorUpdateChan:
 			txMsg := NetworkMessage{id, MT_UpdateElevator, ElevatorMessage{id, elevator}}
 			networkMessageTx <- txMsg
 			/* fmt.Printf("Sendt: %#v\n", txMsg) */
-			fmt.Printf("Sendt\n")
+			fmt.Printf("Sendt elevator update\n")
 		case elevatorMsg := <-distributeOrderChan:
 			txMsg := NetworkMessage{id, MT_UpdateElevator, elevatorMsg}
 			networkMessageTx <- txMsg
 			/* fmt.Printf("Sendt: %#v\n", txMsg) */
-			fmt.Printf("Sendt\n")
+			fmt.Printf("Sendt order distribute\n")
+		case elevatorMsg := <-updateNewElevatorChan:
+			txMsg := NetworkMessage{id, MT_UpdateElevator, elevatorMsg}
+			networkMessageTx <- txMsg
+			/* fmt.Printf("Sendt: %#v\n", txMsg) */
+			fmt.Printf("Sendt new elevator update\n")
 		case localElevIDChan <- id:
 			fmt.Printf("Sendt id\n")
 		}

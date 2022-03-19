@@ -50,7 +50,7 @@ func ElevatorStateMachine(
 	var elevator Elevator
 	obstructed := false
 	//timerFinishedChannel := make(chan int)
-	InitializeElevator(&elevator)
+	//InitializeElevator(&elevator)
 
 	var doorClose <-chan time.Time
 
@@ -58,6 +58,7 @@ func ElevatorStateMachine(
 		select {
 
 		case btn := <-newOrderChan:
+			fmt.Println("NEW ORDER")
 			//fmt.Printf("COST: %+v\n", CalculateCost(elevator, btn))
 			btnFloor := btn.Floor
 			btnType := btn.Button
@@ -117,6 +118,7 @@ func ElevatorStateMachine(
 			}
 
 		case newFloor := <-drv_floors:
+			fmt.Println("NEW FLOOR")
 			elevator.Floor = newFloor
 			elevio.SetFloorIndicator(elevator.Floor)
 			switch elevator.Behavior {
@@ -156,6 +158,4 @@ func InitializeElevator(elevator *Elevator) {
 			elevator.RemoveOrder(f, elevio.ButtonType(btn))
 		}
 	}
-	elevio.SetMotorDirection(elevator.Direction)
-
 }

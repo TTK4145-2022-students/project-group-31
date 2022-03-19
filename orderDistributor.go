@@ -14,6 +14,7 @@ func OrderDistributor(
 	networkOrder <-chan elevio.ButtonEvent,
 	localElevIDChan <-chan string,
 	redistributeOrdersChan <-chan ElevatorNetwork) {
+
 	for {
 		select {
 		case order := <-drv_buttons:
@@ -22,6 +23,7 @@ func OrderDistributor(
 			if elevatorNetwork.OnlyLocal {
 				newOrderChan <- order
 			} else {
+				fmt.Println("Calc Cost")
 				if order.Button == elevio.BT_HallUp || order.Button == elevio.BT_HallDown {
 
 					distributeOrderChan <- findMinCostElevator(elevatorNetwork, order)
