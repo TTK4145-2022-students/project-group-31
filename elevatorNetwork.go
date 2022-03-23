@@ -27,7 +27,7 @@ func ElevatorNetworkStateMachine(
 	networkOrder chan<- elevio.ButtonEvent,
 	updateConnectionsChan <-chan peers.PeerUpdate,
 	updateElevatorChan chan<- Elevator,
-	reconnectedElevChan <-chan Elevator,
+	getElevChan <-chan Elevator,
 	redistributeOrdersChan chan<- ElevatorNetwork,
 	updateNewElevatorChan chan<- ElevatorMessage) {
 
@@ -36,7 +36,12 @@ func ElevatorNetworkStateMachine(
 	localElevID := <-localElevIDChan
 	localElevIDInt, _ := strconv.Atoi(localElevID)
 
-	initializeElevatorNetwork := true
+	fmt.Println("INIT NETWORK")
+	elevatorNetwork.OnlyLocal = true //Default behavior
+	for i := 0; i < MAX_NUMBER_OF_ELEVATORS; i++ {
+		elevatorNetwork.ElevatorModules[i].Elevator.Behavior = EB_Initialize
+	}
+	elevatorNetwork.ElevatorModules[localElevIDInt].Elevator = <-getElevChan
 
 	for {
 		select {
@@ -59,17 +64,22 @@ func ElevatorNetworkStateMachine(
 						}
 					}
 				}
-				if ntwrkMsg.SenderId != localElevID {
-					updateElevatorChan <- ntwrkMsg.ElevatorMessage.Elevator
+				if ntwrkMsg.MessageType != MT_NewElevator {
+					elevatorNetwork.ElevatorModules[elevID].Elevator = e
+				} else {
+					elevatorNetwork.ElevatorModules[elevID].Elevator.Requests = e.Requests
 				}
+			} else {
+				elevatorNetwork.ElevatorModules[elevID].Elevator = e
 			}
-			//Update ElevNetwork
-			elevatorNetwork.ElevatorModules[elevID].Elevator = e
+
 			elevatorNetwork.SetAllHallLights(localElevID)
 			PrintElevatorNetwork(elevatorNetwork)
 
 		//Elevator becomes online or offline
 		case p := <-updateConnectionsChan:
+
+			//Only local mode
 			if len(p.Peers) == 0 {
 				elevatorNetwork.OnlyLocal = true
 				fmt.Printf("ElevatorNetwork is now running in only local mode\n")
@@ -77,19 +87,14 @@ func ElevatorNetworkStateMachine(
 				elevatorNetwork.OnlyLocal = false
 				fmt.Printf("ElevatorNetwork is now online\n")
 			}
-			if initializeElevatorNetwork {
-				initializeElevatorNetwork = false
 
-				fmt.Println("INIT NETWORK")
-				InitializeElevatorNetwork(&elevatorNetwork)
-				updateElevatorChan <- elevatorNetwork.ElevatorModules[localElevIDInt].Elevator
-			}
+			//Sending orders to each other on startup or reconnect
 			//If you are not the new one send all uninit elevators
 			if p.New != localElevID && p.New != "" {
 				fmt.Println("Found new other elevator")
 				for id := 0; id < MAX_NUMBER_OF_ELEVATORS; id++ {
 					elevator := elevatorNetwork.ElevatorModules[id].Elevator
-					if !IsInitializedElevator(elevator) {
+					if elevator.Behavior != EB_Initialize {
 						updateNewElevatorChan <- ElevatorMessage{Elevator: elevator, ElevatorId: strconv.Itoa(id)}
 						fmt.Println("Sendt new elevator: ", id)
 					}
@@ -101,29 +106,27 @@ func ElevatorNetworkStateMachine(
 				elevator := elevatorNetwork.ElevatorModules[localElevIDInt].Elevator
 				id, _ := strconv.Atoi(p.New)
 				elevatorNetwork.ElevatorModules[id].Connected = true
-				if !IsInitializedElevator(elevator) {
+				if elevator.Behavior != EB_Initialize {
 					updateNewElevatorChan <- ElevatorMessage{Elevator: elevator, ElevatorId: localElevID}
 					fmt.Println("Sendt new myself elevator: ")
 				}
 			}
-
+			//Losing elevators
 			for _, lostElevID := range p.Lost {
 				id, _ := strconv.Atoi(lostElevID)
 				elevatorNetwork.ElevatorModules[id].Connected = false
 				fmt.Printf("Elevator: %#v is now offline\n", id)
-				//redistributeOrdersChan <- elevatorNetwork
+				redistributeOrdersChan <- elevatorNetwork
+				//Maybe scary no confirmation that the orders have been successfully redistributed. Maybe not critical
+				for floor := 0; floor < NUM_FLOORS; floor++ {
+					for btn := elevio.ButtonType(0); btn < NUM_BUTTONS-1; btn++ {
+						elevatorNetwork.ElevatorModules[id].Elevator.Requests[floor][btn] = false
+					}
+				}
 			}
 			PrintElevatorNetwork(elevatorNetwork)
 		}
 	}
-}
-
-func InitializeElevatorNetwork(en *ElevatorNetwork) {
-	en.OnlyLocal = true //Default behavior
-	for i := 0; i < MAX_NUMBER_OF_ELEVATORS; i++ {
-		InitializeElevator(&en.ElevatorModules[i].Elevator)
-	}
-	elevio.SetMotorDirection(elevio.MD_Down) //BAD CODE QUALITY I THINK
 }
 
 func (en ElevatorNetwork) SetAllHallLights(localElevID string) {
@@ -178,7 +181,7 @@ func PrintElevatorNetwork(en ElevatorNetwork) {
 	}
 }
 
-func IsInitializedElevator(elevator Elevator) bool {
+/* func IsInitializedElevator(elevator Elevator) bool {
 	var initElevator Elevator
 	InitializeElevator(&initElevator)
 
@@ -198,4 +201,4 @@ func IsInitializedElevator(elevator Elevator) bool {
 	} else {
 		return false
 	}
-}
+} */

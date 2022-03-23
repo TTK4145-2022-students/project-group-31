@@ -13,9 +13,10 @@ const DOOR_OPEN_DURATION = 3
 type ElevatorBehavior int
 
 const (
-	EB_Idle     ElevatorBehavior = 0
-	EB_DoorOpen ElevatorBehavior = 1
-	EB_Moving   ElevatorBehavior = 2
+	EB_Idle       ElevatorBehavior = 0
+	EB_DoorOpen   ElevatorBehavior = 1
+	EB_Moving     ElevatorBehavior = 2
+	EB_Initialize ElevatorBehavior = 3
 )
 
 type Elevator struct {
@@ -46,11 +47,12 @@ func ElevatorStateMachine(
 	drv_obstr <-chan bool,
 	elevatorUpdateChan chan<- Elevator,
 	updateElevatorChan <-chan Elevator,
-	reconnectedElevChan chan<- Elevator) {
+	getElevChan chan<- Elevator,
+	elevatorInitializedChan chan<- bool) {
 	var elevator Elevator
 	obstructed := false
 	//timerFinishedChannel := make(chan int)
-	//InitializeElevator(&elevator)
+	InitializeElevator(&elevator)
 
 	var doorClose <-chan time.Time
 
@@ -132,19 +134,21 @@ func ElevatorStateMachine(
 					elevio.SetDoorOpenLamp(true)
 					doorClose = time.After(3 * time.Second)
 					elevator.Behavior = EB_DoorOpen
-
+					elevatorUpdateChan <- elevator
 				}
-			case EB_Idle:
+			case EB_Initialize:
+				fmt.Printf("STOP INIT\n")
 				elevio.SetMotorDirection(elevio.MD_Stop)
+				elevator.Behavior = EB_Idle
+				elevatorInitializedChan <- true
 			}
-			elevatorUpdateChan <- elevator
 
 		case obstructed = <-drv_obstr:
 			fmt.Println("Obstructed")
 		case elevator = <-updateElevatorChan:
 			fmt.Println("Received update")
 			//elevator.Direction, elevator.Behavior = NextAction(elevator)
-		case reconnectedElevChan <- elevator:
+		case getElevChan <- elevator:
 		}
 	}
 }
@@ -152,10 +156,11 @@ func ElevatorStateMachine(
 func InitializeElevator(elevator *Elevator) {
 	elevator.Floor = 0 //Where we are
 	elevator.Direction = elevio.MD_Down
-	elevator.Behavior = EB_Idle
+	elevator.Behavior = EB_Initialize
 	for f := 0; f < NUM_FLOORS; f++ {
 		for btn := 0; btn < NUM_BUTTONS; btn++ {
 			elevator.RemoveOrder(f, elevio.ButtonType(btn))
 		}
 	}
+	elevio.SetMotorDirection(elevio.MD_Down)
 }

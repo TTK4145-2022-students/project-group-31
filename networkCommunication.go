@@ -17,6 +17,7 @@ type MessageType int
 const (
 	MT_Acknowledge    MessageType = 0
 	MT_UpdateElevator MessageType = 1
+	MT_NewElevator    MessageType = 2 // SHITTY NAME
 )
 
 //Most likely an unneccessary struct and can just implement it in Network Message with ElevatorID
@@ -67,7 +68,7 @@ func NetworkCommunication(
 	//transmitAgain = time.After(1 * time.Second)
 
 	//transmitAgain = nil
-	fmt.Println("Started")
+	
 	for {
 		select {
 		case p := <-peerUpdateCh:
@@ -93,7 +94,7 @@ func NetworkCommunication(
 			/* fmt.Printf("Sendt: %#v\n", txMsg) */
 			fmt.Printf("Sendt order distribute\n")
 		case elevatorMsg := <-updateNewElevatorChan:
-			txMsg := NetworkMessage{id, MT_UpdateElevator, elevatorMsg}
+			txMsg := NetworkMessage{id, MT_NewElevator, elevatorMsg}
 			networkMessageTx <- txMsg
 			/* fmt.Printf("Sendt: %#v\n", txMsg) */
 			fmt.Printf("Sendt new elevator update\n")

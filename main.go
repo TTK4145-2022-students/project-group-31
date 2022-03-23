@@ -23,25 +23,27 @@ func main() {
 		elevio.Init("localhost:15657", numFloors)
 	}
 
-	drv_buttons := make(chan elevio.ButtonEvent)
-	drv_floors := make(chan int)
-	drv_obstr := make(chan bool)
-	drv_stop := make(chan bool)
+	drv_buttons := make(chan elevio.ButtonEvent, 1)
+	drv_floors := make(chan int, 1)
+	drv_obstr := make(chan bool, 1)
+	drv_stop := make(chan bool, 1)
 
-	newOrderChan := make(chan elevio.ButtonEvent)
-	networkOrder := make(chan elevio.ButtonEvent)
-	reconnectedElevChan := make(chan Elevator)
-	elevatorUpdateChan := make(chan Elevator)
-	elevatorNetworkChan := make(chan ElevatorNetwork)
+	newOrderChan := make(chan elevio.ButtonEvent, 1)
+	networkOrder := make(chan elevio.ButtonEvent, 1)
+	getElevChan := make(chan Elevator, 1)
+	elevatorUpdateChan := make(chan Elevator, 1)
+	elevatorNetworkChan := make(chan ElevatorNetwork, 1)
 
-	redistributeOrdersChan := make(chan ElevatorNetwork)
-	localElevIDChan := make(chan string)
-	distributeOrderChan := make(chan ElevatorMessage)
-	networkUpdateChan := make(chan NetworkMessage)
+	elevatorInitializedChan := make(chan bool, 1)
 
-	updateConnectionsChan := make(chan peers.PeerUpdate)
-	updateElevatorChan := make(chan Elevator)
-	updateNewElevatorChan := make(chan ElevatorMessage)
+	redistributeOrdersChan := make(chan ElevatorNetwork, 1)
+	localElevIDChan := make(chan string, 1)
+	distributeOrderChan := make(chan ElevatorMessage, 1)
+	networkUpdateChan := make(chan NetworkMessage, 1)
+
+	updateConnectionsChan := make(chan peers.PeerUpdate, 1)
+	updateElevatorChan := make(chan Elevator, 1)
+	updateNewElevatorChan := make(chan ElevatorMessage, 1)
 
 	go elevio.PollButtons(drv_buttons)
 	go elevio.PollFloorSensor(drv_floors)
@@ -54,7 +56,10 @@ func main() {
 		drv_obstr,
 		elevatorUpdateChan,
 		updateElevatorChan,
-		reconnectedElevChan)
+		getElevChan,
+		elevatorInitializedChan)
+	// Wait fo the elevator to be initialized before doing anything else
+	<-elevatorInitializedChan
 
 	go NetworkCommunication(
 		elevatorUpdateChan,
@@ -71,7 +76,7 @@ func main() {
 		networkOrder,
 		updateConnectionsChan,
 		updateElevatorChan,
-		reconnectedElevChan,
+		getElevChan,
 		redistributeOrdersChan,
 		updateNewElevatorChan)
 
