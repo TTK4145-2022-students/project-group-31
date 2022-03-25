@@ -26,7 +26,6 @@ func ElevatorNetworkStateMachine(
 	networkUpdateChan <-chan NetworkMessage,
 	networkOrder chan<- elevio.ButtonEvent,
 	updateConnectionsChan <-chan peers.PeerUpdate,
-	updateElevatorChan chan<- Elevator,
 	getElevChan <-chan Elevator,
 	redistributeOrdersChan chan<- ElevatorNetwork,
 	updateNewElevatorChan chan<- ElevatorMessage) {
@@ -70,6 +69,7 @@ func ElevatorNetworkStateMachine(
 					elevatorNetwork.ElevatorModules[elevID].Elevator.Requests = e.Requests
 				}
 			} else {
+				//Overwrite ourself a the other elevator
 				elevatorNetwork.ElevatorModules[elevID].Elevator = e
 			}
 
@@ -101,7 +101,7 @@ func ElevatorNetworkStateMachine(
 				}
 				id, _ := strconv.Atoi(p.New)
 				elevatorNetwork.ElevatorModules[id].Connected = true
-			} else if p.New != "" { //IF you are the new one send only yourself if you have info
+			} /* else if p.New != "" { //IF you are the new one send only yourself if you have info
 				fmt.Println("Found new my self elevator")
 				elevator := elevatorNetwork.ElevatorModules[localElevIDInt].Elevator
 				id, _ := strconv.Atoi(p.New)
@@ -110,7 +110,7 @@ func ElevatorNetworkStateMachine(
 					updateNewElevatorChan <- ElevatorMessage{Elevator: elevator, ElevatorId: localElevID}
 					fmt.Println("Sendt new myself elevator: ")
 				}
-			}
+			} */
 			//Losing elevators
 			for _, lostElevID := range p.Lost {
 				id, _ := strconv.Atoi(lostElevID)

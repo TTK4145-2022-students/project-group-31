@@ -2,7 +2,6 @@ package main
 
 import (
 	"Driver-go/elevio"
-	"fmt"
 )
 
 func RequestsAbove(e Elevator) bool {
@@ -84,8 +83,6 @@ func NextAction(e Elevator) (direction elevio.MotorDirection, behavior ElevatorB
 		direction = elevio.MD_Stop
 		behavior = EB_Idle
 	}
-	fmt.Printf("New Direction %#v\n", direction)
-	fmt.Printf("New Behavior %#v\n", behavior)
 	return
 }
 

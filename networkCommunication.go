@@ -68,7 +68,7 @@ func NetworkCommunication(
 	//transmitAgain = time.After(1 * time.Second)
 
 	//transmitAgain = nil
-	
+	wasStuck:=false
 	for {
 		select {
 		case p := <-peerUpdateCh:
@@ -85,7 +85,19 @@ func NetworkCommunication(
 			networkUpdateChan <- rxMsg
 		case elevator := <-elevatorUpdateChan:
 			txMsg := NetworkMessage{id, MT_UpdateElevator, ElevatorMessage{id, elevator}}
+
+			if (elevator.Behavior==EB_MotorStop || elevator.Behavior==EB_DoorJam) && !wasStuck{
+				peerTxEnable<-false
+				wasStuck=true
+			}else if (elevator.Behavior!=EB_MotorStop && elevator.Behavior!=EB_DoorJam) && wasStuck{
+				peerTxEnable<-true
+				wasStuck=false
+				fmt.Println("We back bby!")
+			}
+			
 			networkMessageTx <- txMsg
+
+			
 			/* fmt.Printf("Sendt: %#v\n", txMsg) */
 			fmt.Printf("Sendt elevator update\n")
 		case elevatorMsg := <-distributeOrderChan:

@@ -30,19 +30,18 @@ func main() {
 
 	newOrderChan := make(chan elevio.ButtonEvent, 1)
 	networkOrder := make(chan elevio.ButtonEvent, 1)
-	getElevChan := make(chan Elevator, 1)
+	getElevChan := make(chan Elevator)
 	elevatorUpdateChan := make(chan Elevator, 1)
-	elevatorNetworkChan := make(chan ElevatorNetwork, 1)
+	elevatorNetworkChan := make(chan ElevatorNetwork)
 
-	elevatorInitializedChan := make(chan bool, 1)
+	elevatorInitializedChan := make(chan bool)
 
 	redistributeOrdersChan := make(chan ElevatorNetwork, 1)
-	localElevIDChan := make(chan string, 1)
+	localElevIDChan := make(chan string)
 	distributeOrderChan := make(chan ElevatorMessage, 1)
 	networkUpdateChan := make(chan NetworkMessage, 1)
 
 	updateConnectionsChan := make(chan peers.PeerUpdate, 1)
-	updateElevatorChan := make(chan Elevator, 1)
 	updateNewElevatorChan := make(chan ElevatorMessage, 1)
 
 	go elevio.PollButtons(drv_buttons)
@@ -55,7 +54,6 @@ func main() {
 		drv_floors,
 		drv_obstr,
 		elevatorUpdateChan,
-		updateElevatorChan,
 		getElevChan,
 		elevatorInitializedChan)
 	// Wait fo the elevator to be initialized before doing anything else
@@ -75,7 +73,6 @@ func main() {
 		networkUpdateChan,
 		networkOrder,
 		updateConnectionsChan,
-		updateElevatorChan,
 		getElevChan,
 		redistributeOrdersChan,
 		updateNewElevatorChan)
