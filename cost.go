@@ -2,8 +2,7 @@ package main
 
 import "Driver-go/elevio"
 
-const ELEVATOR_TRAVEL_COST = 2500
-const ELEVATOR_DOOR_OPEN_COST = 3000
+
 
 func CalculateCost(elevator Elevator, newOrder elevio.ButtonEvent) int {
 	elevator.AddOrder(newOrder.Floor, newOrder.Button)

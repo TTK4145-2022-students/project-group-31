@@ -7,8 +7,6 @@ import (
 	"strconv"
 )
 
-const MAX_NUMBER_OF_ELEVATORS = 3
-
 type ElevatorNetworkModule struct {
 	Elevator  Elevator
 	Connected bool
@@ -16,7 +14,7 @@ type ElevatorNetworkModule struct {
 
 //Create struct for the ability to send network as parameter and on channel without writing as array
 type ElevatorNetwork struct {
-	ElevatorModules [MAX_NUMBER_OF_ELEVATORS]ElevatorNetworkModule
+	ElevatorModules [NUM_ELEVATORS]ElevatorNetworkModule
 	OnlyLocal       bool //Unsure wether to have or not. Connected to network for each elevator gives us the same info if EN[id].Connected=false
 }
 
@@ -37,7 +35,7 @@ func ElevatorNetworkStateMachine(
 
 	fmt.Println("INIT NETWORK")
 	elevatorNetwork.OnlyLocal = true //Default behavior
-	for i := 0; i < MAX_NUMBER_OF_ELEVATORS; i++ {
+	for i := 0; i < NUM_ELEVATORS; i++ {
 		elevatorNetwork.ElevatorModules[i].Elevator.Behavior = EB_Initialize
 	}
 	elevatorNetwork.ElevatorModules[localElevIDInt].Elevator = <-getElevChan
@@ -92,7 +90,7 @@ func ElevatorNetworkStateMachine(
 			//If you are not the new one send all uninit elevators
 			if p.New != localElevID && p.New != "" {
 				fmt.Println("Found new other elevator")
-				for id := 0; id < MAX_NUMBER_OF_ELEVATORS; id++ {
+				for id := 0; id < NUM_ELEVATORS; id++ {
 					elevator := elevatorNetwork.ElevatorModules[id].Elevator
 					if elevator.Behavior != EB_Initialize {
 						updateNewElevatorChan <- ElevatorMessage{Elevator: elevator, ElevatorId: strconv.Itoa(id)}
@@ -110,7 +108,7 @@ func ElevatorNetworkStateMachine(
 					updateNewElevatorChan <- ElevatorMessage{Elevator: elevator, ElevatorId: localElevID}
 					fmt.Println("Sendt new myself elevator: ")
 				}
-			} */
+			} */ // Maybe uncomment no longer overwrites because of channel fix in previous commit
 			//Losing elevators
 			for _, lostElevID := range p.Lost {
 				id, _ := strconv.Atoi(lostElevID)
@@ -132,7 +130,7 @@ func ElevatorNetworkStateMachine(
 func (en ElevatorNetwork) SetAllHallLights(localElevID string) {
 	//Create lights matrix for hall calls. Cab calls are turned on and off locally
 	var lights [NUM_FLOORS][NUM_BUTTONS - 1]bool
-	for id := 0; id < MAX_NUMBER_OF_ELEVATORS; id++ {
+	for id := 0; id < NUM_ELEVATORS; id++ {
 		elevator := en.ElevatorModules[id].Elevator
 		for floor := 0; floor < NUM_FLOORS; floor++ {
 			for btn := elevio.ButtonType(0); btn < NUM_BUTTONS-1; btn++ {
@@ -151,7 +149,7 @@ func (en ElevatorNetwork) SetAllHallLights(localElevID string) {
 	/* for floor := 0; floor < NUM_FLOORS; floor++ {
 		for btn := elevio.ButtonType(0); btn < NUM_BUTTONS; btn++ {
 			hallOrder := false
-			for id := 0; id < MAX_NUMBER_OF_ELEVATORS; id++ {
+			for id := 0; id < NUM_ELEVATORS; id++ {
 				if btn == elevio.BT_Cab && strconv.Itoa(id) == localElevID {
 					elevio.SetButtonLamp(btn, floor, en.ElevatorModules[id].Elevator.Requests[floor][btn])
 				} else if en.ElevatorModules[id].Elevator.Requests[floor][btn] {
@@ -164,7 +162,7 @@ func (en ElevatorNetwork) SetAllHallLights(localElevID string) {
 }
 func PrintElevatorNetwork(en ElevatorNetwork) {
 
-	for id := 0; id < MAX_NUMBER_OF_ELEVATORS; id++ {
+	for id := 0; id < NUM_ELEVATORS; id++ {
 		fmt.Println("Elevator: ", id)
 		elevator := en.ElevatorModules[id].Elevator
 		fmt.Printf("| B: %+v", elevator.Behavior)

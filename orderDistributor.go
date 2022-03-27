@@ -41,7 +41,7 @@ func OrderDistributor(
 			newOrderChan <- order
 		case elevatorNetwork := <-redistributeOrdersChan:
 			fmt.Println("Try to redistribute")
-			for id := 0; id < MAX_NUMBER_OF_ELEVATORS; id++ {
+			for id := 0; id < NUM_ELEVATORS; id++ {
 				if !elevatorNetwork.ElevatorModules[id].Connected {
 					fmt.Println("Found discontinued elevator")
 					for floor := 0; floor < NUM_FLOORS; floor++ {
@@ -61,8 +61,8 @@ func OrderDistributor(
 
 func findMinCostElevator(elevatorNetwork ElevatorNetwork, order elevio.ButtonEvent) (elevMsg ElevatorMessage) {
 
-	var costs [MAX_NUMBER_OF_ELEVATORS]int
-	for elevID := 0; elevID < MAX_NUMBER_OF_ELEVATORS; elevID++ {
+	var costs [NUM_ELEVATORS]int
+	for elevID := 0; elevID < NUM_ELEVATORS; elevID++ {
 		if elevatorNetwork.ElevatorModules[elevID].Connected {
 			costs[elevID] = CalculateCost(elevatorNetwork.ElevatorModules[elevID].Elevator, order)
 		} else {

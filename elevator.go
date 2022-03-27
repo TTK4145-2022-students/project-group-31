@@ -6,10 +6,6 @@ import (
 	"time"
 )
 
-const NUM_FLOORS = 4
-const NUM_BUTTONS = 3
-const DOOR_OPEN_DURATION = 3
-
 type ElevatorBehavior int
 
 const (
