@@ -24,9 +24,10 @@ func main() {
 	}
 
 	drv_buttons := make(chan elevio.ButtonEvent, 1)
+	
 	drv_floors := make(chan int, 1)
 	drv_obstr := make(chan bool, 1)
-	drv_stop := make(chan bool, 1)
+	//drv_stop := make(chan bool, 1)
 
 	newOrderChan := make(chan elevio.ButtonEvent, 1)
 	networkOrder := make(chan elevio.ButtonEvent, 1)
@@ -47,7 +48,7 @@ func main() {
 	go elevio.PollButtons(drv_buttons)
 	go elevio.PollFloorSensor(drv_floors)
 	go elevio.PollObstructionSwitch(drv_obstr)
-	go elevio.PollStopButton(drv_stop)
+	//go elevio.PollStopButton(drv_stop)
 
 	go ElevatorStateMachine(
 		newOrderChan,

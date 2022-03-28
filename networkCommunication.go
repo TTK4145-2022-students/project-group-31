@@ -5,6 +5,7 @@ import (
 	"Network-go/network/peers"
 	"flag"
 	"fmt"
+	"time"
 )
 
 type HelloMsg struct {
@@ -18,6 +19,7 @@ const (
 	MT_Acknowledge    MessageType = 0
 	MT_UpdateElevator MessageType = 1
 	MT_NewElevator    MessageType = 2 // SHITTY NAME
+	MT_NewOrder       MessageType = 3
 )
 
 //Most likely an unneccessary struct and can just implement it in Network Message with ElevatorID
@@ -29,6 +31,7 @@ type NetworkMessage struct {
 	SenderId        string
 	MessageType     MessageType
 	ElevatorMessage ElevatorMessage
+	TimeStamp       time.Time
 }
 
 func NetworkCommunication(
@@ -51,24 +54,22 @@ func NetworkCommunication(
 	go peers.Transmitter(2305, id, peerTxEnable)
 	go peers.Receiver(2305, peerUpdateCh)
 
-	networkMessageTx := make(chan NetworkMessage)
-	networkMessageRx := make(chan NetworkMessage)
+	networkMessageTx := make(chan NetworkMessage) //Might need buffer
+	networkMessageRx := make(chan NetworkMessage) //Might need buffer
 	// ... and start the transmitter/receiver pair on some port
 	// These functions can take any number of channels! It is also possible to
 	//  start multiple transmitters/receivers on the same port.
 	go bcast.Transmitter(1412, networkMessageTx)
 	go bcast.Receiver(1412, networkMessageRx)
 
-	/* peerCount := 0
-	AckCount := 0
-	var lastReceivedMsg NetworkMessage
-	var lastTransmittedMsg NetworkMessage
-	var receivedAcks [MAX_NUMBER_OF_ELEVATORS]bool
-	var transmitAgain <-chan time.Time */
-	//transmitAgain = time.After(1 * time.Second)
+	numPeers := 0
 
-	//transmitAgain = nil
-	wasStuck:=false
+	unackedMessages := make(map[time.Time]int)
+	lastSendtMessages := make(map[time.Time]NetworkMessage)
+
+	var resendMessage <-chan time.Time
+
+	wasStuck := false
 	for {
 		select {
 		case p := <-peerUpdateCh:
@@ -77,41 +78,79 @@ func NetworkCommunication(
 			fmt.Printf("  New:      %q\n", p.New)
 			fmt.Printf("  Lost:     %q\n", p.Lost)
 			fmt.Println("len:", len(p.Peers))
-			//peerCount = len(p.Peers)
+			numPeers = len(p.Peers)
 			updateConnectionsChan <- p
 		case rxMsg := <-networkMessageRx:
 			/* fmt.Printf("Received: %#v\n", rxMsg) */
 			fmt.Printf("Received network message\n")
-			networkUpdateChan <- rxMsg
-		case elevator := <-elevatorUpdateChan:
-			txMsg := NetworkMessage{id, MT_UpdateElevator, ElevatorMessage{id, elevator}}
+			if rxMsg.MessageType == MT_Acknowledge {
+				fmt.Println("Acknowledge")
+				if rxMsg.SenderId != id {
+					unackedMessages[rxMsg.TimeStamp] = unackedMessages[rxMsg.TimeStamp] + 1
+				}
+				if unackedMessages[rxMsg.TimeStamp] == numPeers-1 { //only care about the two others at a later date to minimilize packet loss oppurtunities
+					delete(unackedMessages, rxMsg.TimeStamp)
+					delete(lastSendtMessages, rxMsg.TimeStamp) // Deletes if it exists ignores if it doesn't
+					networkUpdateChan <- rxMsg
+				}
 
-			if (elevator.Behavior==EB_MotorStop || elevator.Behavior==EB_DoorJam) && !wasStuck{
-				peerTxEnable<-false
-				wasStuck=true
-			}else if (elevator.Behavior!=EB_MotorStop && elevator.Behavior!=EB_DoorJam) && wasStuck{
-				peerTxEnable<-true
-				wasStuck=false
+			} else if rxMsg.MessageType == MT_UpdateElevator {
+				fmt.Println("UpdateElevator")
+				networkUpdateChan <- rxMsg
+
+			} else {
+				unackedMessages[rxMsg.TimeStamp] = 0
+				rxMsg.SenderId = id
+				rxMsg.MessageType = MT_Acknowledge
+				networkMessageTx <- rxMsg
+			}
+
+		case elevator := <-elevatorUpdateChan:
+			txMsg := NetworkMessage{id, MT_UpdateElevator, ElevatorMessage{id, elevator}, time.Now()}
+
+			if (elevator.Behavior == EB_MotorStop || elevator.Behavior == EB_DoorJam) && !wasStuck {
+				peerTxEnable <- false
+				wasStuck = true
+			} else if (elevator.Behavior != EB_MotorStop && elevator.Behavior != EB_DoorJam) && wasStuck {
+				peerTxEnable <- true
+				wasStuck = false
 				fmt.Println("We back bby!")
 			}
-			
 			networkMessageTx <- txMsg
 
-			
-			/* fmt.Printf("Sendt: %#v\n", txMsg) */
 			fmt.Printf("Sendt elevator update\n")
 		case elevatorMsg := <-distributeOrderChan:
-			txMsg := NetworkMessage{id, MT_UpdateElevator, elevatorMsg}
+			txMsg := NetworkMessage{id, MT_NewOrder, elevatorMsg, time.Now()}
 			networkMessageTx <- txMsg
-			/* fmt.Printf("Sendt: %#v\n", txMsg) */
+
+			lastSendtMessages[txMsg.TimeStamp] = txMsg
+			resendMessage = time.After(TIME_TO_RESEND * time.Millisecond)
 			fmt.Printf("Sendt order distribute\n")
+
 		case elevatorMsg := <-updateNewElevatorChan:
-			txMsg := NetworkMessage{id, MT_NewElevator, elevatorMsg}
+			txMsg := NetworkMessage{id, MT_NewElevator, elevatorMsg, time.Now()}
 			networkMessageTx <- txMsg
-			/* fmt.Printf("Sendt: %#v\n", txMsg) */
+			lastSendtMessages[txMsg.TimeStamp] = txMsg
+			resendMessage = time.After(TIME_TO_RESEND * time.Millisecond)
 			fmt.Printf("Sendt new elevator update\n")
+
 		case localElevIDChan <- id:
 			fmt.Printf("Sendt id\n")
+		case <-resendMessage:
+			var messageToResend NetworkMessage
+			var latestMessageTime time.Time
+			for timeStamp, networkMsg := range lastSendtMessages {
+				//Prioritize new elevator packetlosses over new order packetlosses
+				if networkMsg.MessageType == MT_NewElevator {
+					messageToResend = networkMsg
+					break
+				}
+				if timeStamp.Before(latestMessageTime) {
+					messageToResend = networkMsg
+				}
+			}
+			networkMessageTx <- messageToResend
+			fmt.Printf("Resend\n")
 		}
 	}
 }

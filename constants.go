@@ -11,3 +11,6 @@ const NUM_ELEVATORS = 3
 //Cost constants
 const ELEVATOR_TRAVEL_COST = 2500
 const ELEVATOR_DOOR_OPEN_COST = 3000
+
+//Network Communication constants
+const TIME_TO_RESEND = 500
