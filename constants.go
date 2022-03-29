@@ -14,3 +14,5 @@ const ELEVATOR_DOOR_OPEN_COST = 3000
 
 //Network Communication constants
 const TIME_TO_RESEND = 500
+const PEERS_PORT = 2305
+const TRANSCEIVER_PORT = 1412

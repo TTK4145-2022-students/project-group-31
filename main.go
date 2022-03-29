@@ -1,93 +1,85 @@
 package main
 
-//	"Driver-go/elevio"
 import (
 	"Driver-go/elevio"
+	"Network-go/network/bcast"
 	"Network-go/network/peers"
-	"fmt"
-	"math/rand"
 	"os"
-	"time"
 )
 
 func main() {
-	//UNNECCESARY RAND
-	rand.Seed(time.Now().UnixNano())
-	numFloors := 4
-	fmt.Println(os.Args)
+	//Initialize with id of the local elevator and a port. Use physical elevator if no simulator port is given
+	id := os.Args[1]
 	if len(os.Args) > 2 {
 		port := os.Args[2]
 		addr := "localhost:" + port
-		elevio.Init(addr, numFloors)
+		elevio.Init(addr, NUM_FLOORS)
 	} else {
-		elevio.Init("localhost:15657", numFloors)
+		elevio.Init("localhost:15657", NUM_FLOORS)
 	}
 
-	drv_buttons := make(chan elevio.ButtonEvent, 1)
-	
-	drv_floors := make(chan int, 1)
-	drv_obstr := make(chan bool, 1)
-	//drv_stop := make(chan bool, 1)
+	drv_buttons := make(chan elevio.ButtonEvent)
+	drv_floors := make(chan int)
+	drv_obstr := make(chan bool)
 
-	newOrderChan := make(chan elevio.ButtonEvent, 1)
-	networkOrder := make(chan elevio.ButtonEvent, 1)
-	getElevChan := make(chan Elevator)
-	elevatorUpdateChan := make(chan Elevator, 1)
-	elevatorNetworkChan := make(chan ElevatorNetwork)
+	peerUpdateCh := make(chan peers.PeerUpdate)
+	peerTxEnable := make(chan bool)
 
-	elevatorInitializedChan := make(chan bool)
+	networkMessageTx := make(chan NetworkMessage)
+	networkMessageRx := make(chan NetworkMessage)
 
-	redistributeOrdersChan := make(chan ElevatorNetwork, 1)
-	localElevIDChan := make(chan string)
-	distributeOrderChan := make(chan ElevatorMessage, 1)
-	networkUpdateChan := make(chan NetworkMessage, 1)
+	initialElevator := make(chan Elevator)
+	elevatorStateChangeCh := make(chan Elevator)
 
-	updateConnectionsChan := make(chan peers.PeerUpdate, 1)
-	updateNewElevatorChan := make(chan ElevatorMessage, 1)
+	elevatorNetworkUpdateCh := make(chan [NUM_ELEVATORS]Elevator)
+
+	distributedOrderCh := make(chan NetworkMessage)
+	orderToLocalElevatorCh := make(chan elevio.ButtonEvent)
+
+	reconnectedElevator := make(chan NetworkMessage)
+	updateElevatorNetworkCh := make(chan NetworkMessage)
 
 	go elevio.PollButtons(drv_buttons)
 	go elevio.PollFloorSensor(drv_floors)
 	go elevio.PollObstructionSwitch(drv_obstr)
-	//go elevio.PollStopButton(drv_stop)
 
-	go ElevatorStateMachine(
-		newOrderChan,
+	go ElevatorFSM(
 		drv_floors,
 		drv_obstr,
-		elevatorUpdateChan,
-		getElevChan,
-		elevatorInitializedChan)
-	// Wait fo the elevator to be initialized before doing anything else
-	<-elevatorInitializedChan
+		orderToLocalElevatorCh,
+		initialElevator,
+		elevatorStateChangeCh)
+	//Waits for the Elevator to be initialized before starting the other go routines
+	initialLocalElevator := <-initialElevator
 
-	go NetworkCommunication(
-		elevatorUpdateChan,
-		localElevIDChan,
-		distributeOrderChan,
-		networkUpdateChan,
-		updateConnectionsChan,
-		updateNewElevatorChan)
+	go peers.Transmitter(PEERS_PORT, id, peerTxEnable)
+	go peers.Receiver(PEERS_PORT, peerUpdateCh)
 
-	go ElevatorNetworkStateMachine(
-		localElevIDChan,
-		elevatorNetworkChan,
-		networkUpdateChan,
-		networkOrder,
-		updateConnectionsChan,
-		getElevChan,
-		redistributeOrdersChan,
-		updateNewElevatorChan)
+	go bcast.Transmitter(TRANSCEIVER_PORT, networkMessageTx)
+	go bcast.Receiver(TRANSCEIVER_PORT, networkMessageRx)
 
-	go OrderDistributor(
-		elevatorNetworkChan,
+	go orderDistributor(
+		id,
 		drv_buttons,
-		distributeOrderChan,
-		newOrderChan,
-		networkOrder,
-		localElevIDChan,
-		redistributeOrdersChan)
+		elevatorNetworkUpdateCh,
+		orderToLocalElevatorCh,
+		distributedOrderCh)
 
-	select {
-	//:(
-	}
+	go NetworkTransceiver(
+		id,
+		elevatorStateChangeCh,
+		distributedOrderCh,
+		reconnectedElevator,
+		networkMessageRx,
+		updateElevatorNetworkCh,
+		networkMessageTx)
+	go ElevatorNetwork(
+		id,
+		initialLocalElevator,
+		updateElevatorNetworkCh,
+		peerUpdateCh,
+		reconnectedElevator,
+		elevatorNetworkUpdateCh)
+
+	select {}
 }
