@@ -8,5 +8,10 @@ func orderDistributor(
 	elevatorNetworkUpdateCh <-chan [NUM_ELEVATORS]Elevator,
 	orderToLocalElevatorCh chan<- elevio.ButtonEvent,
 	distributedOrderCh chan<- NetworkMessage) {
-
+	for {
+		select {
+		case btn := <-drv_buttons:
+			orderToLocalElevatorCh <- btn
+		}
+	}
 }

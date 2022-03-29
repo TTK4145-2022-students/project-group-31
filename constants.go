@@ -4,6 +4,7 @@ package main
 const NUM_FLOORS = 4
 const NUM_BUTTONS = 3
 const DOOR_OPEN_DURATION = 3
+const TRAVEL_TIME = 3
 
 //Elevator Network Constants
 const NUM_ELEVATORS = 3

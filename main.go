@@ -73,6 +73,7 @@ func main() {
 		networkMessageRx,
 		updateElevatorNetworkCh,
 		networkMessageTx)
+
 	go ElevatorNetwork(
 		id,
 		initialLocalElevator,
