@@ -17,3 +17,6 @@ const ELEVATOR_DOOR_OPEN_COST = 3000
 const TIME_TO_RESEND = 500
 const PEERS_PORT = 2305
 const TRANSCEIVER_PORT = 1412
+
+//Order Distributor constants
+const MAX_COST = 10000000

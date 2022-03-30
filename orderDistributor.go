@@ -11,7 +11,7 @@ func orderDistributor(
 	localID string,
 	drv_buttons <-chan elevio.ButtonEvent,
 	elevatorNetworkUpdateCh <-chan [NUM_ELEVATORS]Elevator,
-	orderToLocalElevatorCh chan<- elevio.ButtonEvent,
+	addLocalOrder chan<- elevio.ButtonEvent,
 	distributedOrderCh chan<- NetworkMessage) {
 	var elevatorNetworkCopy [NUM_ELEVATORS]Elevator
 	for {
@@ -28,14 +28,21 @@ func orderDistributor(
 				distributedOrderCh <- NetworkMessage{SenderID: localID, MessageType: MT_NewOrder, ElevatorID: elevatorID, Elevator: minElevator, TimeStamp: time.Now()}
 			}
 		case elevatorNetwork := <-elevatorNetworkUpdateCh:
+
+			for id := 0; id < NUM_ELEVATORS; id++ {
+				if elevatorNetwork[id].Behavior == EB_Unavailable && elevatorNetworkCopy[id].Behavior != EB_Unavailable {
+					elevatorNetwork = redistributeHallOrders(elevatorNetwork, id)
+					fmt.Println("Redistributed")
+				}
+			}
+
 			id, _ := strconv.Atoi(localID)
 			for floor := 0; floor < NUM_FLOORS; floor++ {
 				for btn := elevio.ButtonType(0); btn < NUM_BUTTONS; btn++ {
 					if elevatorNetwork[id].Orders[floor][btn] != elevatorNetworkCopy[id].Orders[floor][btn] {
 						if elevatorNetwork[id].Orders[floor][btn] {
-							orderToLocalElevatorCh <- elevio.ButtonEvent{Floor: floor, Button: btn}
+							addLocalOrder <- elevio.ButtonEvent{Floor: floor, Button: btn}
 						}
-						//Else order has been completed and we do nothin at the moment
 					}
 				}
 			}
@@ -74,17 +81,41 @@ func CalculateCost(elevator Elevator, newOrder elevio.ButtonEvent) int {
 }
 
 func findMinCostElevator(elevatorNetwork [NUM_ELEVATORS]Elevator, order elevio.ButtonEvent) (elevatorID string, elevator Elevator) {
-	elevatorID = "0"
-	minCost := 10000000
+	minCost := MAX_COST
 	for id := 0; id < NUM_ELEVATORS; id++ {
-		cost := CalculateCost(elevatorNetwork[id], order)
+		cost := MAX_COST
+		if elevatorNetwork[id].Behavior == EB_Unavailable {
+			fmt.Println("This cost is unavailable")
+		} else {
+			cost = CalculateCost(elevatorNetwork[id], order)
+		}
 		if cost < minCost {
 			minCost = cost
 			elevatorID = strconv.Itoa(id)
 		}
+		fmt.Println("Cost of Elevator ", id, ": ", cost)
 	}
 	id, _ := strconv.Atoi(elevatorID)
 	elevator = elevatorNetwork[id]
 	elevator.AddOrder(order)
 	return
+}
+
+func redistributeHallOrders(elevatorNetwork [NUM_ELEVATORS]Elevator, unavailableID int) [NUM_ELEVATORS]Elevator {
+	for floor := 0; floor < NUM_FLOORS; floor++ {
+		for btn := elevio.ButtonType(0); btn < NUM_BUTTONS-1; btn++ {
+
+			order := elevio.ButtonEvent{Floor: floor, Button: btn}
+
+			if elevatorNetwork[unavailableID].Orders[floor][btn] {
+
+				elevatorID, minElevator := findMinCostElevator(elevatorNetwork, order)
+				fmt.Println("Elevator: ", elevatorID, "received the order: ", order.Floor, "-", order.Button)
+				id, _ := strconv.Atoi(elevatorID)
+				elevatorNetwork[id] = minElevator
+				elevatorNetwork[unavailableID].RemoveOrder(order)
+			}
+		}
+	}
+	return elevatorNetwork
 }

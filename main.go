@@ -34,7 +34,7 @@ func main() {
 	elevatorNetworkUpdateCh := make(chan [NUM_ELEVATORS]Elevator)
 
 	distributedOrderCh := make(chan NetworkMessage)
-	orderToLocalElevatorCh := make(chan elevio.ButtonEvent)
+	addLocalOrder := make(chan elevio.ButtonEvent)
 
 	reconnectedElevator := make(chan NetworkMessage)
 	updateElevatorNetworkCh := make(chan NetworkMessage)
@@ -46,7 +46,7 @@ func main() {
 	go ElevatorFSM(
 		drv_floors,
 		drv_obstr,
-		orderToLocalElevatorCh,
+		addLocalOrder,
 		initialElevator,
 		elevatorStateChangeCh)
 	//Waits for the Elevator to be initialized before starting the other go routines
@@ -62,7 +62,7 @@ func main() {
 		localID,
 		drv_buttons,
 		elevatorNetworkUpdateCh,
-		orderToLocalElevatorCh,
+		addLocalOrder,
 		distributedOrderCh)
 
 	go NetworkTransceiver(

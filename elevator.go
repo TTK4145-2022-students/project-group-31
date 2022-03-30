@@ -30,7 +30,7 @@ func (elevator *Elevator) Initialize() {
 	elevator.Floor = 0
 	elevator.Direction = elevio.MD_Down
 	elevator.Behavior = EB_Initialize
-	elevator.SetAllLights()
+	elevator.SetCabLights()
 
 	elevio.SetDoorOpenLamp(false)
 	elevio.SetMotorDirection(elevio.MD_Down)
@@ -44,20 +44,20 @@ func (e *Elevator) RemoveOrder(order elevio.ButtonEvent) {
 }
 
 //As we implement EN we want to only turn on cab lights and refuse to take hall
-func (e Elevator) SetAllLights() {
+/* func (e Elevator) SetAllLights() {
 	for floor := 0; floor < NUM_FLOORS; floor++ {
 		for btn := elevio.ButtonType(0); btn < 3; btn++ {
 			elevio.SetButtonLamp(btn, floor, e.Orders[floor][btn])
 		}
 	}
-}
+} */
 
 //As we implement EN we want to only turn on cab lights and refuse to take hall
-/* func (e Elevator) SetCabLights() {
+func (e Elevator) SetCabLights() {
 	for floor := 0; floor < NUM_FLOORS; floor++ {
 		elevio.SetButtonLamp(elevio.BT_Cab, floor, e.Orders[floor][elevio.BT_Cab])
 	}
-} */
+}
 
 func (elevator Elevator) Print() {
 	fmt.Printf("| B: %+v", elevator.Behavior)
@@ -76,7 +76,7 @@ func (elevator Elevator) Print() {
 func ElevatorFSM(
 	drv_floors <-chan int,
 	drv_obstr <-chan bool,
-	orderToLocalElevatorCh <-chan elevio.ButtonEvent,
+	addLocalOrder <-chan elevio.ButtonEvent,
 	initialElevator chan<- Elevator,
 	elevatorStateChangeCh chan<- Elevator) {
 
@@ -90,7 +90,7 @@ func ElevatorFSM(
 
 	for {
 		select {
-		case order := <-orderToLocalElevatorCh:
+		case order := <-addLocalOrder:
 			switch elevator.Behavior {
 			case EB_Unavailable:
 				elevator.AddOrder(order)
@@ -120,7 +120,7 @@ func ElevatorFSM(
 
 				elevatorStateChangeCh <- elevator // Maybe send anyways
 			}
-			elevator.SetAllLights()
+			elevator.SetCabLights()
 
 		case <-doorClose:
 			if obstructed {
@@ -133,7 +133,7 @@ func ElevatorFSM(
 				case EB_DoorOpen:
 					clearAtCurrentFloor(&elevator)
 					doorClose = time.After(DOOR_OPEN_DURATION * time.Second)
-					elevator.SetAllLights()
+					elevator.SetCabLights()
 				case EB_Moving:
 					assumeMotorStop = time.After(TRAVEL_TIME * time.Second)
 					elevio.SetDoorOpenLamp(false)
@@ -154,7 +154,7 @@ func ElevatorFSM(
 				if ShouldStop(elevator) {
 					elevio.SetMotorDirection(elevio.MD_Stop)
 					clearAtCurrentFloor(&elevator)
-					elevator.SetAllLights()
+					elevator.SetCabLights()
 					elevio.SetDoorOpenLamp(true)
 					doorClose = time.After(DOOR_OPEN_DURATION * time.Second)
 					elevator.Behavior = EB_DoorOpen
@@ -168,7 +168,7 @@ func ElevatorFSM(
 					assumeMotorStop = nil
 					elevio.SetMotorDirection(elevio.MD_Stop)
 					clearAtCurrentFloor(&elevator)
-					elevator.SetAllLights()
+					elevator.SetCabLights()
 
 					elevio.SetDoorOpenLamp(true)
 					doorClose = time.After(DOOR_OPEN_DURATION * time.Second)

@@ -24,19 +24,23 @@ func ElevatorNetwork(
 			elevatorID, _ := strconv.Atoi(networkMsg.ElevatorID)
 			if networkMsg.SenderID == networkMsg.ElevatorID {
 				elevatorNetwork[elevatorID] = elevator
-			} else {
-				for id := 0; id < NUM_ELEVATORS; id++ {
-					for floor := 0; floor < NUM_FLOORS; floor++ {
-						for btn := elevio.ButtonType(0); btn < NUM_BUTTONS; btn++ {
-							if id == elevatorID {
-								elevatorNetwork[id].Orders[floor][btn] = elevatorNetwork[id].Orders[floor][btn] || elevator.Orders[floor][btn]
-							}
+				break
+			}
+			//Detect changes to orders
+			for id := 0; id < NUM_ELEVATORS; id++ {
+				for floor := 0; floor < NUM_FLOORS; floor++ {
+					for btn := elevio.ButtonType(0); btn < NUM_BUTTONS; btn++ {
+						if id == elevatorID {
+							elevatorNetwork[id].Orders[floor][btn] = elevatorNetwork[id].Orders[floor][btn] || elevator.Orders[floor][btn]
 						}
 					}
 				}
+
 			}
+			fmt.Println("Received Network")
 			PrintElevatorNetwork(elevatorNetwork)
 			elevatorNetworkUpdateCh <- elevatorNetwork
+			SetAllHallLights(elevatorNetwork)
 			//Redistribute orders and find new orders to local
 		}
 	}
@@ -94,4 +98,26 @@ func PrintElevatorNetwork(elevatorNetwork [NUM_ELEVATORS]Elevator) {
 		fmt.Printf("\n")
 	}
 	fmt.Println()
+}
+
+func SetAllHallLights(elevatorNetwork [NUM_ELEVATORS]Elevator) {
+	//Create lights matrix for hall calls. Cab calls are turned on and off locally
+	var lights [NUM_FLOORS][NUM_BUTTONS - 1]bool
+	for id := 0; id < NUM_ELEVATORS; id++ {
+		elevator := elevatorNetwork[id]
+		for floor := 0; floor < NUM_FLOORS; floor++ {
+			for btn := elevio.ButtonType(0); btn < NUM_BUTTONS-1; btn++ {
+				if elevator.Behavior != EB_Unavailable {
+					lights[floor][btn] = lights[floor][btn] || elevator.Orders[floor][btn]
+				}
+			}
+		}
+	}
+
+	//Turn on or off lights accordingly
+	for floor := 0; floor < NUM_FLOORS; floor++ {
+		for btn := elevio.ButtonType(0); btn < NUM_BUTTONS-1; btn++ {
+			elevio.SetButtonLamp(btn, floor, lights[floor][btn])
+		}
+	}
 }
