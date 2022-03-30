@@ -5,6 +5,7 @@ import (
 	"Network-go/network/peers"
 	"fmt"
 	"strconv"
+	"time"
 )
 
 func ElevatorNetwork(
@@ -16,14 +17,21 @@ func ElevatorNetwork(
 	elevatorNetworkUpdateCh chan<- [NUM_ELEVATORS]Elevator) {
 
 	var elevatorNetwork [NUM_ELEVATORS]Elevator
+	for id := 0; id < NUM_ELEVATORS; id++ {
+		elevatorNetwork[id].Behavior = EB_Unavailable
+	}
 
+	var isLost [NUM_ELEVATORS]bool
 	for {
 		select {
 		case networkMsg := <-updateElevatorNetworkCh:
+
 			elevator := networkMsg.Elevator
 			elevatorID, _ := strconv.Atoi(networkMsg.ElevatorID)
-			if networkMsg.SenderID == networkMsg.ElevatorID {
+
+			if networkMsg.SenderID == networkMsg.ElevatorID && !isLost[elevatorID] {
 				elevatorNetwork[elevatorID] = elevator
+
 			} else {
 				for id := 0; id < NUM_ELEVATORS; id++ {
 					for floor := 0; floor < NUM_FLOORS; floor++ {
@@ -35,11 +43,40 @@ func ElevatorNetwork(
 					}
 				}
 			}
-			fmt.Println("Received Network")
+			fmt.Println("Received Network Message of type", networkMsg.MessageType)
+			fmt.Println("From: ", networkMsg.SenderID, "About: ", networkMsg.ElevatorID)
 			PrintElevatorNetwork(elevatorNetwork)
 			elevatorNetworkUpdateCh <- elevatorNetwork
 			SetAllHallLights(elevatorNetwork)
-			//Redistribute orders and find new orders to local
+
+		case p := <-peerUpdateCh:
+			fmt.Printf("Peer update:\n")
+			fmt.Printf("  Peers:    %q\n", p.Peers)
+			fmt.Printf("  New:      %q\n", p.New)
+			fmt.Printf("  Lost:     %q\n", p.Lost)
+
+			if p.New != "" && p.New != localID {
+				fmt.Println(time.Now())
+
+				fmt.Println("Sending elevator ", localID, " myself")
+				localIDInt, _ := strconv.Atoi(localID)
+				elevatorNetwork[localIDInt].Print()
+				reconnectedElevator <- NetworkMessage{SenderID: localID, MessageType: MT_ReconnectedElevator, ElevatorID: localID, Elevator: elevatorNetwork[localIDInt], TimeStamp: time.Now()}
+
+				fmt.Println("Sending new elevator ", p.New, " info")
+				id, _ := strconv.Atoi(p.New)
+				elevatorNetwork[id].Print()
+				reconnectedElevator <- NetworkMessage{SenderID: localID, MessageType: MT_ReconnectedElevator, ElevatorID: p.New, Elevator: elevatorNetwork[id], TimeStamp: time.Now()}
+				isLost[id] = false
+			}
+			if len(p.Lost) > 0 {
+				for _, lost := range p.Lost {
+					id, _ := strconv.Atoi(lost)
+					elevatorNetwork[id].Behavior = EB_Unavailable
+					isLost[id] = true
+				}
+				elevatorNetworkUpdateCh <- elevatorNetwork
+			}
 		}
 	}
 }

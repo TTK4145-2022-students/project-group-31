@@ -22,8 +22,6 @@ type Elevator struct {
 	Behavior  ElevatorBehavior
 
 	Orders [NUM_FLOORS][NUM_BUTTONS]bool
-
-	Online bool
 }
 
 func (elevator *Elevator) Initialize() {

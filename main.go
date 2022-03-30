@@ -25,19 +25,19 @@ func main() {
 	peerUpdateCh := make(chan peers.PeerUpdate)
 	peerTxEnable := make(chan bool)
 
-	networkMessageTx := make(chan NetworkMessage)
-	networkMessageRx := make(chan NetworkMessage)
+	networkMessageTx := make(chan NetworkMessage, 10)
+	networkMessageRx := make(chan NetworkMessage, 10)
 
 	initialElevator := make(chan Elevator)
 	elevatorStateChangeCh := make(chan Elevator)
 
-	elevatorNetworkUpdateCh := make(chan [NUM_ELEVATORS]Elevator)
+	elevatorNetworkUpdateCh := make(chan [NUM_ELEVATORS]Elevator, 1)
 
 	distributedOrderCh := make(chan NetworkMessage)
 	addLocalOrder := make(chan elevio.ButtonEvent)
 
-	reconnectedElevator := make(chan NetworkMessage)
-	updateElevatorNetworkCh := make(chan NetworkMessage)
+	reconnectedElevator := make(chan NetworkMessage, 1)
+	updateElevatorNetworkCh := make(chan NetworkMessage, 1)
 
 	go elevio.PollButtons(drv_buttons)
 	go elevio.PollFloorSensor(drv_floors)
@@ -50,13 +50,13 @@ func main() {
 		initialElevator,
 		elevatorStateChangeCh)
 	//Waits for the Elevator to be initialized before starting the other go routines
-	initialLocalElevator := <-initialElevator
-
-	go peers.Transmitter(PEERS_PORT, localID, peerTxEnable)
-	go peers.Receiver(PEERS_PORT, peerUpdateCh)
+	initialLocalElevator := <-initialElevator //Currently unused delete if not used under packetlossdqwe
 
 	go bcast.Transmitter(TRANSCEIVER_PORT, networkMessageTx)
 	go bcast.Receiver(TRANSCEIVER_PORT, networkMessageRx)
+
+	go peers.Transmitter(PEERS_PORT, localID, peerTxEnable)
+	go peers.Receiver(PEERS_PORT, peerUpdateCh)
 
 	go orderDistributor(
 		localID,

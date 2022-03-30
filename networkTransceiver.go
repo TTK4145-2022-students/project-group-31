@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"time"
 )
 
@@ -30,19 +29,44 @@ func NetworkTransceiver(
 	networkMessageRx <-chan NetworkMessage,
 	updateElevatorNetworkCh chan<- NetworkMessage,
 	networkMessageTx chan<- NetworkMessage) {
+
+	lastTransmittedMessages := make(map[MessageType]NetworkMessage)
+
+	var resendMessages <-chan time.Time
+	//resendMessages = time.After(TIME_TO_RESEND * time.Millisecond)
 	for {
 		select {
 		case msg := <-networkMessageRx:
-			//fmt.Println("Elevator ID: ", localID)
-			//msg.Elevator.Print()
 			updateElevatorNetworkCh <- msg
 		case elevator := <-elevatorStateChangeCh:
 			networkMsg := NetworkMessage{SenderID: localID, MessageType: MT_ElevatorStateChange, ElevatorID: localID, Elevator: elevator, TimeStamp: time.Now()}
+			lastTransmittedMessages[MT_ElevatorStateChange] = networkMsg
 			networkMessageTx <- networkMsg
+
 		case msg := <-distributedOrderCh:
+			lastTransmittedMessages[msg.MessageType] = msg
 			networkMessageTx <- msg
-		case elevatorMsg := <-reconnectedElevator:
-			fmt.Println(elevatorMsg)
+
+		case msg := <-reconnectedElevator:
+			lastTransmittedMessages[msg.MessageType] = msg
+			networkMessageTx <- msg
+		case <-resendMessages:
+			/* var mostRecentTime time.Time
+			var msgToSend NetworkMessage
+
+			for _, msg := range lastTransmittedMessages {
+				//ONLY SEND MOST RECENT
+				if msg.TimeStamp.After(mostRecentTime) {
+					mostRecentTime = msg.TimeStamp
+					msgToSend = msg
+				}
+			}
+			networkMessageTx <- msgToSend */
+			for _, msg := range lastTransmittedMessages {
+				networkMessageTx <- msg
+			}
+
+			resendMessages = time.After(TIME_TO_RESEND * time.Millisecond)
 		}
 	}
 }
