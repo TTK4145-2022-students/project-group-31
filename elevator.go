@@ -2,6 +2,7 @@ package main
 
 import (
 	"Driver-go/elevio"
+	"fmt"
 	"time"
 )
 
@@ -18,9 +19,11 @@ const (
 type Elevator struct {
 	Floor     int
 	Direction elevio.MotorDirection
-	Orders    [NUM_FLOORS][NUM_BUTTONS]bool
 	Behavior  ElevatorBehavior
-	Online    bool
+
+	Orders [NUM_FLOORS][NUM_BUTTONS]bool
+
+	Online bool
 }
 
 func (elevator *Elevator) Initialize() {
@@ -56,6 +59,20 @@ func (e Elevator) SetAllLights() {
 	}
 } */
 
+func (elevator Elevator) Print() {
+	fmt.Printf("| B: %+v", elevator.Behavior)
+	fmt.Printf(" | D: %+v", elevator.Direction)
+	fmt.Printf(" | F: %+v |\n", elevator.Floor)
+	fmt.Println("   UP       DOWN     CAB")
+	for floor := 0; floor < NUM_FLOORS; floor++ {
+		fmt.Printf("|")
+		for btn := elevio.ButtonType(0); btn < NUM_BUTTONS; btn++ {
+			fmt.Printf("  %+v  ", elevator.Orders[floor][btn])
+		}
+		fmt.Printf("|\n")
+	}
+}
+
 func ElevatorFSM(
 	drv_floors <-chan int,
 	drv_obstr <-chan bool,
@@ -87,6 +104,7 @@ func ElevatorFSM(
 			case EB_Idle:
 				elevator.AddOrder(order)
 				elevator.Direction, elevator.Behavior = ChooseDirection(elevator)
+
 				switch elevator.Behavior {
 				case EB_DoorOpen:
 					elevio.SetDoorOpenLamp(true)
@@ -96,6 +114,8 @@ func ElevatorFSM(
 					elevio.SetMotorDirection(elevator.Direction)
 					assumeMotorStop = time.After(TRAVEL_TIME * time.Second)
 				}
+
+				elevatorStateChangeCh <- elevator // Maybe send anyways
 			}
 			elevator.SetAllLights()
 
@@ -103,6 +123,7 @@ func ElevatorFSM(
 			if obstructed {
 				doorClose = time.After(DOOR_OPEN_DURATION * time.Second)
 				elevator.Behavior = EB_Unavailable
+
 			} else {
 				elevator.Direction, elevator.Behavior = ChooseDirection(elevator)
 				switch elevator.Behavior {
@@ -118,7 +139,9 @@ func ElevatorFSM(
 					elevio.SetDoorOpenLamp(false)
 					elevio.SetMotorDirection(elevator.Direction)
 				}
+
 			}
+			elevatorStateChangeCh <- elevator
 
 		case newFloor := <-drv_floors:
 			elevator.Floor = newFloor
@@ -134,7 +157,8 @@ func ElevatorFSM(
 					doorClose = time.After(DOOR_OPEN_DURATION * time.Second)
 					elevator.Behavior = EB_DoorOpen
 				} else {
-					elevator.Behavior = EB_Moving
+					elevator.Direction, elevator.Behavior = ChooseDirection(elevator)
+					elevio.SetMotorDirection(elevator.Direction)
 				}
 			case EB_Moving:
 				assumeMotorStop = time.After(TRAVEL_TIME * time.Second)
@@ -154,11 +178,13 @@ func ElevatorFSM(
 				elevator.Direction = elevio.MD_Stop
 				initialElevator <- elevator
 			}
+			elevatorStateChangeCh <- elevator
 
 		case obstructed = <-drv_obstr:
 
 		case <-assumeMotorStop:
 			elevator.Behavior = EB_Unavailable
+			elevatorStateChangeCh <- elevator
 		}
 	}
 }
