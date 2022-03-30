@@ -87,10 +87,13 @@ func ElevatorFSM(
 	var doorClose <-chan time.Time
 
 	var assumeMotorStop <-chan time.Time
+
 	for {
 		select {
 		case order := <-orderToLocalElevatorCh:
 			switch elevator.Behavior {
+			case EB_Unavailable:
+				elevator.AddOrder(order)
 			case EB_DoorOpen:
 				if ShouldClearImmediately(elevator, order.Floor, order.Button) {
 					doorClose = time.After(DOOR_OPEN_DURATION * time.Second)
@@ -139,7 +142,6 @@ func ElevatorFSM(
 					elevio.SetDoorOpenLamp(false)
 					elevio.SetMotorDirection(elevator.Direction)
 				}
-
 			}
 			elevatorStateChangeCh <- elevator
 

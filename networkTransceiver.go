@@ -39,8 +39,8 @@ func NetworkTransceiver(
 		case elevator := <-elevatorStateChangeCh:
 			networkMsg := NetworkMessage{SenderID: localID, MessageType: MT_ElevatorStateChange, ElevatorID: localID, Elevator: elevator, TimeStamp: time.Now()}
 			networkMessageTx <- networkMsg
-		case elevatorMsg := <-distributedOrderCh:
-			fmt.Println(elevatorMsg)
+		case msg := <-distributedOrderCh:
+			networkMessageTx <- msg
 		case elevatorMsg := <-reconnectedElevator:
 			fmt.Println(elevatorMsg)
 		}

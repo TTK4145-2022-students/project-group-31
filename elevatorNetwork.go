@@ -28,12 +28,15 @@ func ElevatorNetwork(
 				for id := 0; id < NUM_ELEVATORS; id++ {
 					for floor := 0; floor < NUM_FLOORS; floor++ {
 						for btn := elevio.ButtonType(0); btn < NUM_BUTTONS; btn++ {
-							elevatorNetwork[id].Orders[floor][btn] = elevatorNetwork[id].Orders[floor][btn] || elevator.Orders[floor][btn]
+							if id == elevatorID {
+								elevatorNetwork[id].Orders[floor][btn] = elevatorNetwork[id].Orders[floor][btn] || elevator.Orders[floor][btn]
+							}
 						}
 					}
 				}
 			}
 			PrintElevatorNetwork(elevatorNetwork)
+			elevatorNetworkUpdateCh <- elevatorNetwork
 			//Redistribute orders and find new orders to local
 		}
 	}
