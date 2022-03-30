@@ -24,18 +24,16 @@ func ElevatorNetwork(
 			elevatorID, _ := strconv.Atoi(networkMsg.ElevatorID)
 			if networkMsg.SenderID == networkMsg.ElevatorID {
 				elevatorNetwork[elevatorID] = elevator
-				break
-			}
-			//Detect changes to orders
-			for id := 0; id < NUM_ELEVATORS; id++ {
-				for floor := 0; floor < NUM_FLOORS; floor++ {
-					for btn := elevio.ButtonType(0); btn < NUM_BUTTONS; btn++ {
-						if id == elevatorID {
-							elevatorNetwork[id].Orders[floor][btn] = elevatorNetwork[id].Orders[floor][btn] || elevator.Orders[floor][btn]
+			} else {
+				for id := 0; id < NUM_ELEVATORS; id++ {
+					for floor := 0; floor < NUM_FLOORS; floor++ {
+						for btn := elevio.ButtonType(0); btn < NUM_BUTTONS; btn++ {
+							if id == elevatorID {
+								elevatorNetwork[id].Orders[floor][btn] = elevatorNetwork[id].Orders[floor][btn] || elevator.Orders[floor][btn]
+							}
 						}
 					}
 				}
-
 			}
 			fmt.Println("Received Network")
 			PrintElevatorNetwork(elevatorNetwork)
