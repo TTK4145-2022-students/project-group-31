@@ -23,7 +23,7 @@ type NetworkMessage struct {
 }
 
 func NetworkTransceiver(
-	id string,
+	localID string,
 	elevatorStateChangeCh <-chan Elevator,
 	distributedOrderCh <-chan NetworkMessage,
 	reconnectedElevator <-chan NetworkMessage,
@@ -33,9 +33,11 @@ func NetworkTransceiver(
 	for {
 		select {
 		case msg := <-networkMessageRx:
-			msg.Elevator.Print()
+			//fmt.Println("Elevator ID: ", localID)
+			//msg.Elevator.Print()
+			updateElevatorNetworkCh <- msg
 		case elevator := <-elevatorStateChangeCh:
-			networkMsg := NetworkMessage{SenderID: id, MessageType: MT_ElevatorStateChange, ElevatorID: id, Elevator: elevator, TimeStamp: time.Now()}
+			networkMsg := NetworkMessage{SenderID: localID, MessageType: MT_ElevatorStateChange, ElevatorID: localID, Elevator: elevator, TimeStamp: time.Now()}
 			networkMessageTx <- networkMsg
 		case elevatorMsg := <-distributedOrderCh:
 			fmt.Println(elevatorMsg)

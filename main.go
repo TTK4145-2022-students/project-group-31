@@ -9,7 +9,7 @@ import (
 
 func main() {
 	//Initialize with id of the local elevator and a port. Use physical elevator if no simulator port is given
-	id := os.Args[1]
+	localID := os.Args[1]
 	if len(os.Args) > 2 {
 		port := os.Args[2]
 		addr := "localhost:" + port
@@ -52,21 +52,21 @@ func main() {
 	//Waits for the Elevator to be initialized before starting the other go routines
 	initialLocalElevator := <-initialElevator
 
-	go peers.Transmitter(PEERS_PORT, id, peerTxEnable)
+	go peers.Transmitter(PEERS_PORT, localID, peerTxEnable)
 	go peers.Receiver(PEERS_PORT, peerUpdateCh)
 
 	go bcast.Transmitter(TRANSCEIVER_PORT, networkMessageTx)
 	go bcast.Receiver(TRANSCEIVER_PORT, networkMessageRx)
 
 	go orderDistributor(
-		id,
+		localID,
 		drv_buttons,
 		elevatorNetworkUpdateCh,
 		orderToLocalElevatorCh,
 		distributedOrderCh)
 
 	go NetworkTransceiver(
-		id,
+		localID,
 		elevatorStateChangeCh,
 		distributedOrderCh,
 		reconnectedElevator,
@@ -75,7 +75,7 @@ func main() {
 		networkMessageTx)
 
 	go ElevatorNetwork(
-		id,
+		localID,
 		initialLocalElevator,
 		updateElevatorNetworkCh,
 		peerUpdateCh,
