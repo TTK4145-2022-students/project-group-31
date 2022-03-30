@@ -34,11 +34,6 @@ func orderDistributor(
 					elevatorNetwork = redistributeHallOrders(elevatorNetwork, id)
 					fmt.Println("Redistributed")
 				}
-				/* if elevatorNetwork[id].Behavior != EB_Unavailable && elevatorNetworkCopy[id].Behavior == EB_Unavailable {
-					elevatorNetwork = redistributeCabOrders(elevatorNetwork, elevatorNetworkCopy, id)
-					fmt.Println("Redistributed Cab")
-					PrintElevatorNetwork(elevatorNetwork)
-				} */
 			}
 
 			id, _ := strconv.Atoi(localID)
@@ -121,13 +116,6 @@ func redistributeHallOrders(elevatorNetwork [NUM_ELEVATORS]Elevator, unavailable
 				elevatorNetwork[unavailableID].RemoveOrder(order)
 			}
 		}
-	}
-	return elevatorNetwork
-}
-
-func redistributeCabOrders(elevatorNetwork [NUM_ELEVATORS]Elevator, elevatorNetworkCopy [NUM_ELEVATORS]Elevator, reconnectedID int) [NUM_ELEVATORS]Elevator {
-	for floor := 0; floor < NUM_FLOORS; floor++ {
-		elevatorNetwork[reconnectedID].Orders[floor][elevio.BT_Cab] = elevatorNetworkCopy[reconnectedID].Orders[floor][elevio.BT_Cab]
 	}
 	return elevatorNetwork
 }
