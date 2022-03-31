@@ -6,140 +6,185 @@ import (
 	"time"
 )
 
-const NUM_FLOORS = 4
-const NUM_BUTTONS = 3
-const DOOR_OPEN_DURATION = 3
-
 type ElevatorBehavior int
 
 const (
-	EB_Idle     ElevatorBehavior = 0
-	EB_DoorOpen ElevatorBehavior = 1
-	EB_Moving   ElevatorBehavior = 2
+	EB_Idle        ElevatorBehavior = 0
+	EB_DoorOpen    ElevatorBehavior = 1
+	EB_Moving      ElevatorBehavior = 2
+	EB_Unavailable ElevatorBehavior = 3
+	EB_Initialize  ElevatorBehavior = 4
 )
 
 type Elevator struct {
 	Floor     int
 	Direction elevio.MotorDirection
-	Requests  [NUM_FLOORS][NUM_BUTTONS]bool
 	Behavior  ElevatorBehavior
+
+	Orders [NUM_FLOORS][NUM_BUTTONS]bool
 }
 
-func (e Elevator) SetAllLights() {
+func (elevator *Elevator) Initialize() {
+	elevator.Floor = 0
+	elevator.Direction = elevio.MD_Down
+	elevator.Behavior = EB_Initialize
+	elevator.SetCabLights()
+
+	elevio.SetDoorOpenLamp(false)
+	elevio.SetMotorDirection(elevio.MD_Down)
+}
+
+func (e *Elevator) AddOrder(order elevio.ButtonEvent) {
+	e.Orders[order.Floor][order.Button] = true
+}
+func (e *Elevator) RemoveOrder(order elevio.ButtonEvent) {
+	e.Orders[order.Floor][order.Button] = false
+}
+
+//As we implement EN we want to only turn on cab lights and refuse to take hall
+/* func (e Elevator) SetAllLights() {
 	for floor := 0; floor < NUM_FLOORS; floor++ {
 		for btn := elevio.ButtonType(0); btn < 3; btn++ {
-			elevio.SetButtonLamp(btn, floor, e.Requests[floor][btn])
+			elevio.SetButtonLamp(btn, floor, e.Orders[floor][btn])
 		}
+	}
+} */
+
+//As we implement EN we want to only turn on cab lights and refuse to take hall
+func (e Elevator) SetCabLights() {
+	for floor := 0; floor < NUM_FLOORS; floor++ {
+		elevio.SetButtonLamp(elevio.BT_Cab, floor, e.Orders[floor][elevio.BT_Cab])
 	}
 }
 
-func (e *Elevator) AddOrder(btnFloor int, btnType elevio.ButtonType) {
-	e.Requests[btnFloor][btnType] = true
-}
-func (e *Elevator) RemoveOrder(btnFloor int, btnType elevio.ButtonType) {
-	e.Requests[btnFloor][btnType] = false
+func (elevator Elevator) Print() {
+	fmt.Printf("| B: %+v", elevator.Behavior)
+	fmt.Printf(" | D: %+v", elevator.Direction)
+	fmt.Printf(" | F: %+v |\n", elevator.Floor)
+	fmt.Println("   UP       DOWN     CAB")
+	for floor := 0; floor < NUM_FLOORS; floor++ {
+		fmt.Printf("|")
+		for btn := elevio.ButtonType(0); btn < NUM_BUTTONS; btn++ {
+			fmt.Printf("  %+v  ", elevator.Orders[floor][btn])
+		}
+		fmt.Printf("|\n")
+	}
 }
 
-func ElevatorStateMachine(
-	newOrderChan <-chan elevio.ButtonEvent,
-	arrivedAtFloor <-chan int,
-	obstructionChan <-chan bool) {
+func ElevatorFSM(
+	drv_floors <-chan int,
+	drv_obstr <-chan bool,
+	addLocalOrder <-chan elevio.ButtonEvent,
+	elevatorInitialized chan<- bool,
+	elevatorStateChangeCh chan<- Elevator) {
 
 	var elevator Elevator
-	obstructed := false
-	//timerFinishedChannel := make(chan int)
-	InitializeElevator(&elevator)
+	var obstructed bool
+	elevator.Initialize()
 
 	var doorClose <-chan time.Time
 
-	//doorClose = nil
+	var assumeMotorStop <-chan time.Time
 
 	for {
 		select {
-
-		case btn := <-newOrderChan:
-			btnFloor := btn.Floor
-			btnType := btn.Button
+		case order := <-addLocalOrder:
 			switch elevator.Behavior {
+			case EB_Unavailable:
+				elevator.AddOrder(order)
 			case EB_DoorOpen:
-				if ShouldClearImmediately(elevator, btnFloor, btnType) {
-					//START TIMER
-					doorClose = time.After(3 * time.Second)
+				if ShouldClearImmediately(elevator, order.Floor, order.Button) {
+					doorClose = time.After(DOOR_OPEN_DURATION * time.Second)
 				} else {
-					elevator.AddOrder(btnFloor, btnType)
+					elevator.AddOrder(order)
 				}
 			case EB_Moving:
-				elevator.AddOrder(btnFloor, btnType)
+				elevator.AddOrder(order)
+
+				assumeMotorStop = time.After(TRAVEL_TIME * time.Second)
 			case EB_Idle:
-				elevator.AddOrder(btnFloor, btnType)
-				elevator.Direction, elevator.Behavior = NextAction(elevator)
-				fmt.Printf("new order action; \n")
-				fmt.Printf("EB: %+v\n", elevator.Behavior)
-				fmt.Printf("DIR: %+v\n", elevator.Direction)
+				elevator.AddOrder(order)
+				elevator.Direction, elevator.Behavior = ChooseDirection(elevator)
+
 				switch elevator.Behavior {
 				case EB_DoorOpen:
-					//OPEN DOOR AND START TIMER
 					elevio.SetDoorOpenLamp(true)
 					clearAtCurrentFloor(&elevator)
-					doorClose = time.After(3 * time.Second)
+					doorClose = time.After(DOOR_OPEN_DURATION * time.Second)
 				case EB_Moving:
 					elevio.SetMotorDirection(elevator.Direction)
-				case EB_Idle:
+					assumeMotorStop = time.After(TRAVEL_TIME * time.Second)
 				}
+
+				elevatorStateChangeCh <- elevator // Maybe send anyways
 			}
-			elevator.SetAllLights()
+			elevator.SetCabLights()
+
 		case <-doorClose:
-			fmt.Println("door close timer timed out")
 			if obstructed {
-				doorClose = time.After(3 * time.Second)
+				doorClose = time.After(DOOR_OPEN_DURATION * time.Second)
+				elevator.Behavior = EB_Unavailable
+
 			} else {
+				elevator.Direction, elevator.Behavior = ChooseDirection(elevator)
 				switch elevator.Behavior {
 				case EB_DoorOpen:
-					elevator.Direction, elevator.Behavior = NextAction(elevator)
-					fmt.Printf("DoorClosed action; \n")
-					fmt.Printf("EB: %+v\n", elevator.Behavior)
-					fmt.Printf("DIR: %+v\n", elevator.Direction)
-					switch elevator.Behavior {
-					case EB_DoorOpen:
-						doorClose = time.After(3 * time.Second)
-						clearAtCurrentFloor(&elevator)
-					case EB_Moving:
-						elevio.SetMotorDirection(elevator.Direction)
-						elevio.SetDoorOpenLamp(false)
-					case EB_Idle:
-						elevio.SetDoorOpenLamp(false)
-						elevio.SetMotorDirection(elevator.Direction)
-					}
+					clearAtCurrentFloor(&elevator)
+					doorClose = time.After(DOOR_OPEN_DURATION * time.Second)
+					elevator.SetCabLights()
+				case EB_Moving:
+					assumeMotorStop = time.After(TRAVEL_TIME * time.Second)
+					elevio.SetDoorOpenLamp(false)
+					elevio.SetMotorDirection(elevator.Direction)
+				case EB_Idle:
+					elevio.SetDoorOpenLamp(false)
+					elevio.SetMotorDirection(elevator.Direction)
 				}
 			}
-		case newFloor := <-arrivedAtFloor:
+			elevatorStateChangeCh <- elevator
 
+		case newFloor := <-drv_floors:
 			elevator.Floor = newFloor
 			elevio.SetFloorIndicator(elevator.Floor)
+
 			switch elevator.Behavior {
-			case EB_Moving:
+			case EB_Unavailable:
 				if ShouldStop(elevator) {
-					fmt.Printf("STOP\n")
 					elevio.SetMotorDirection(elevio.MD_Stop)
-					//Opendoor and Start timer
 					clearAtCurrentFloor(&elevator)
-					elevator.SetAllLights()
+					elevator.SetCabLights()
 					elevio.SetDoorOpenLamp(true)
-					//go TimerStart(timerFinishedChannel, DOOR_OPEN_DURATION)
-					doorClose = time.After(3 * time.Second)
+					doorClose = time.After(DOOR_OPEN_DURATION * time.Second)
+					elevator.Behavior = EB_DoorOpen
+				} else {
+					elevator.Direction, elevator.Behavior = ChooseDirection(elevator)
+					elevio.SetMotorDirection(elevator.Direction)
+				}
+			case EB_Moving:
+				assumeMotorStop = time.After(TRAVEL_TIME * time.Second)
+				if ShouldStop(elevator) {
+					assumeMotorStop = nil
+					elevio.SetMotorDirection(elevio.MD_Stop)
+					clearAtCurrentFloor(&elevator)
+					elevator.SetCabLights()
+
+					elevio.SetDoorOpenLamp(true)
+					doorClose = time.After(DOOR_OPEN_DURATION * time.Second)
 					elevator.Behavior = EB_DoorOpen
 				}
-			case EB_Idle:
+			case EB_Initialize:
 				elevio.SetMotorDirection(elevio.MD_Stop)
+				elevator.Behavior = EB_Idle
+				elevator.Direction = elevio.MD_Stop
+				elevatorInitialized <- true
 			}
-		case obstructed = <-obstructionChan:
+			elevatorStateChangeCh <- elevator
+
+		case obstructed = <-drv_obstr:
+
+		case <-assumeMotorStop:
+			elevator.Behavior = EB_Unavailable
+			elevatorStateChangeCh <- elevator
 		}
 	}
-}
-
-func InitializeElevator(elevator *Elevator) {
-	elevator.Floor = -1 //Where we are
-	elevator.Direction = elevio.MD_Down
-	elevator.Behavior = EB_Idle
-	elevio.SetMotorDirection(elevator.Direction)
 }
