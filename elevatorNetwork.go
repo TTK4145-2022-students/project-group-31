@@ -5,7 +5,6 @@ import (
 	"Network-go/network/peers"
 	"fmt"
 	"strconv"
-	"time"
 )
 
 func ElevatorNetwork(
@@ -14,7 +13,8 @@ func ElevatorNetwork(
 	updateElevatorNetworkCh <-chan NetworkMessage,
 	peerUpdateCh <-chan peers.PeerUpdate,
 	reconnectedElevator chan<- NetworkMessage,
-	elevatorNetworkUpdateCh chan<- [NUM_ELEVATORS]Elevator) {
+	elevatorNetworkUpdateCh chan<- [NUM_ELEVATORS]Elevator,
+	numPeers chan<- int) {
 
 	var elevatorNetwork [NUM_ELEVATORS]Elevator
 	for id := 0; id < NUM_ELEVATORS; id++ {
@@ -54,19 +54,27 @@ func ElevatorNetwork(
 			fmt.Printf("  Peers:    %q\n", p.Peers)
 			fmt.Printf("  New:      %q\n", p.New)
 			fmt.Printf("  Lost:     %q\n", p.Lost)
-
+			numPeers <- len(p.Peers)
 			if p.New != "" && p.New != localID {
-				fmt.Println(time.Now())
 
 				fmt.Println("Sending elevator ", localID, " myself")
 				localIDInt, _ := strconv.Atoi(localID)
 				elevatorNetwork[localIDInt].Print()
-				reconnectedElevator <- NetworkMessage{SenderID: localID, MessageType: MT_ReconnectedElevator, ElevatorID: localID, Elevator: elevatorNetwork[localIDInt], TimeStamp: time.Now()}
+				reconnectedElevator <- NetworkMessage{
+					SenderID:    localID,
+					MessageType: MT_ReconnectedElevator,
+					ElevatorID:  localID,
+					Elevator:    elevatorNetwork[localIDInt]}
 
 				fmt.Println("Sending new elevator ", p.New, " info")
 				id, _ := strconv.Atoi(p.New)
 				elevatorNetwork[id].Print()
-				reconnectedElevator <- NetworkMessage{SenderID: localID, MessageType: MT_ReconnectedElevator, ElevatorID: p.New, Elevator: elevatorNetwork[id], TimeStamp: time.Now()}
+				reconnectedElevator <- NetworkMessage{
+					SenderID:    localID,
+					MessageType: MT_ReconnectedElevator,
+					ElevatorID:  p.New,
+					Elevator:    elevatorNetwork[id]}
+
 				isLost[id] = false
 			}
 			if len(p.Lost) > 0 {

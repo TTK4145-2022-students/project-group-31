@@ -4,10 +4,15 @@ import (
 	"Driver-go/elevio"
 	"Network-go/network/bcast"
 	"Network-go/network/peers"
+	"math/rand"
 	"os"
+	"time"
 )
 
 func main() {
+
+	rand.Seed(time.Now().UnixNano())
+
 	//Initialize with id of the local elevator and a port. Use physical elevator if no simulator port is given
 	localID := os.Args[1]
 	if len(os.Args) > 2 {
@@ -24,6 +29,7 @@ func main() {
 
 	peerUpdateCh := make(chan peers.PeerUpdate)
 	peerTxEnable := make(chan bool)
+	numPeers := make(chan int, 1)
 
 	networkMessageTx := make(chan NetworkMessage, 10)
 	networkMessageRx := make(chan NetworkMessage, 10)
@@ -36,8 +42,8 @@ func main() {
 	distributedOrderCh := make(chan NetworkMessage)
 	addLocalOrder := make(chan elevio.ButtonEvent)
 
-	reconnectedElevator := make(chan NetworkMessage, 1)
-	updateElevatorNetworkCh := make(chan NetworkMessage, 1)
+	reconnectedElevator := make(chan NetworkMessage, 10)
+	updateElevatorNetworkCh := make(chan NetworkMessage, 10)
 
 	go elevio.PollButtons(drv_buttons)
 	go elevio.PollFloorSensor(drv_floors)
@@ -70,6 +76,7 @@ func main() {
 		elevatorStateChangeCh,
 		distributedOrderCh,
 		reconnectedElevator,
+		numPeers,
 		networkMessageRx,
 		updateElevatorNetworkCh,
 		networkMessageTx)
@@ -80,7 +87,8 @@ func main() {
 		updateElevatorNetworkCh,
 		peerUpdateCh,
 		reconnectedElevator,
-		elevatorNetworkUpdateCh)
+		elevatorNetworkUpdateCh,
+		numPeers)
 
 	select {}
 }

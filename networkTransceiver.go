@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+	"math/rand"
 	"time"
 )
 
@@ -18,7 +20,7 @@ type NetworkMessage struct {
 	MessageType MessageType
 	ElevatorID  string
 	Elevator    Elevator
-	TimeStamp   time.Time
+	Iter        int
 }
 
 func NetworkTransceiver(
@@ -26,47 +28,106 @@ func NetworkTransceiver(
 	elevatorStateChangeCh <-chan Elevator,
 	distributedOrderCh <-chan NetworkMessage,
 	reconnectedElevator <-chan NetworkMessage,
+	numPeers <-chan int,
 	networkMessageRx <-chan NetworkMessage,
 	updateElevatorNetworkCh chan<- NetworkMessage,
 	networkMessageTx chan<- NetworkMessage) {
 
-	lastTransmittedMessages := make(map[MessageType]NetworkMessage)
+	lastTransmittedMessages := make(map[int]NetworkMessage)
+	messageAcknowledgements := make(map[int]int)
 
+	numOtherPeers := 0
 	var resendMessages <-chan time.Time
-	//resendMessages = time.After(TIME_TO_RESEND * time.Millisecond)
+
+	iteration := 0
 	for {
 		select {
 		case msg := <-networkMessageRx:
-			updateElevatorNetworkCh <- msg
-		case elevator := <-elevatorStateChangeCh:
-			networkMsg := NetworkMessage{SenderID: localID, MessageType: MT_ElevatorStateChange, ElevatorID: localID, Elevator: elevator, TimeStamp: time.Now()}
-			lastTransmittedMessages[MT_ElevatorStateChange] = networkMsg
-			networkMessageTx <- networkMsg
 
-		case msg := <-distributedOrderCh:
-			lastTransmittedMessages[msg.MessageType] = msg
-			networkMessageTx <- msg
+			v := rand.Intn(1)
+			if v == 1 {
+				fmt.Println("Packet is lost")
+			}
+			if msg.SenderID != localID && v != 1 {
+				// Some way ignore acks if you do not want acks
 
-		case msg := <-reconnectedElevator:
-			lastTransmittedMessages[msg.MessageType] = msg
-			networkMessageTx <- msg
-		case <-resendMessages:
-			/* var mostRecentTime time.Time
-			var msgToSend NetworkMessage
-
-			for _, msg := range lastTransmittedMessages {
-				//ONLY SEND MOST RECENT
-				if msg.TimeStamp.After(mostRecentTime) {
-					mostRecentTime = msg.TimeStamp
-					msgToSend = msg
+				fmt.Println("Received message with type: ", msg.MessageType, "iteration: ", msg.Iter, "from ", msg.SenderID)
+				if msg.MessageType == MT_Acknowledge {
+					_, exists := messageAcknowledgements[msg.Iter]
+					if exists {
+						messageAcknowledgements[msg.Iter] = messageAcknowledgements[msg.Iter] + 1
+						if messageAcknowledgements[msg.Iter] == numOtherPeers {
+							fmt.Println("This message has been acknowledged")
+							delete(lastTransmittedMessages, msg.Iter)
+							delete(messageAcknowledgements, msg.Iter)
+						}
+					}
+				} else {
+					updateElevatorNetworkCh <- msg
+					msg.MessageType = MT_Acknowledge
+					msg.SenderID = localID
+					networkMessageTx <- msg
 				}
 			}
-			networkMessageTx <- msgToSend */
-			for _, msg := range lastTransmittedMessages {
+
+		case elevator := <-elevatorStateChangeCh:
+			iteration++
+			msg := NetworkMessage{
+				SenderID:    localID,
+				MessageType: MT_ElevatorStateChange,
+				ElevatorID:  localID,
+				Elevator:    elevator,
+				Iter:        iteration}
+			updateElevatorNetworkCh <- msg
+
+			if numOtherPeers > 0 {
 				networkMessageTx <- msg
+				lastTransmittedMessages[msg.Iter] = msg
+				messageAcknowledgements[msg.Iter] = 0
+				resendMessages = time.After(TIME_TO_RESEND * time.Millisecond)
 			}
 
-			resendMessages = time.After(TIME_TO_RESEND * time.Millisecond)
+		case msg := <-distributedOrderCh:
+			iteration++
+			msg.Iter = iteration
+			updateElevatorNetworkCh <- msg
+
+			if numOtherPeers > 0 {
+				networkMessageTx <- msg
+				lastTransmittedMessages[msg.Iter] = msg
+				messageAcknowledgements[msg.Iter] = 0
+				resendMessages = time.After(TIME_TO_RESEND * time.Millisecond)
+			}
+
+		case msg := <-reconnectedElevator:
+			iteration++
+			msg.Iter = iteration
+			updateElevatorNetworkCh <- msg
+
+			if numOtherPeers > 0 {
+				networkMessageTx <- msg
+				lastTransmittedMessages[msg.Iter] = msg
+				messageAcknowledgements[msg.Iter] = 0
+				resendMessages = time.After(TIME_TO_RESEND * time.Millisecond)
+			}
+
+		case <-resendMessages:
+			fmt.Println("Resend")
+			if len(lastTransmittedMessages) > 0 {
+				for iter, msg := range lastTransmittedMessages {
+					messageAcknowledgements[iter] = 0
+					networkMessageTx <- msg
+					resendMessages = time.After(TIME_TO_RESEND * time.Millisecond)
+					fmt.Println("Resendt message with type: ", msg.MessageType, "iteration: ", iter)
+					break
+				}
+			} else {
+				resendMessages = nil
+			}
+
+		case np := <-numPeers:
+			numOtherPeers = np - 1
+			fmt.Println("Num other peers: ", numOtherPeers)
 		}
 	}
 }

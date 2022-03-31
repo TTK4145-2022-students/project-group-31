@@ -4,7 +4,6 @@ import (
 	"Driver-go/elevio"
 	"fmt"
 	"strconv"
-	"time"
 )
 
 func orderDistributor(
@@ -21,11 +20,22 @@ func orderDistributor(
 				id, _ := strconv.Atoi(localID)
 				elevator := elevatorNetworkCopy[id]
 				elevator.AddOrder(btn)
-				distributedOrderCh <- NetworkMessage{SenderID: localID, MessageType: MT_NewOrder, ElevatorID: localID, Elevator: elevator, TimeStamp: time.Now()}
+				distributedOrderCh <- NetworkMessage{
+					SenderID:    localID,
+					MessageType: MT_NewOrder,
+					ElevatorID:  localID,
+					Elevator:    elevator}
 			} else {
 				elevatorID, minElevator := findMinCostElevator(elevatorNetworkCopy, btn)
 				fmt.Println("Elevator: ", elevatorID, "received the order")
-				distributedOrderCh <- NetworkMessage{SenderID: localID, MessageType: MT_NewOrder, ElevatorID: elevatorID, Elevator: minElevator, TimeStamp: time.Now()}
+
+				if minElevator.Behavior != EB_Unavailable {
+					distributedOrderCh <- NetworkMessage{
+						SenderID:    localID,
+						MessageType: MT_NewOrder,
+						ElevatorID:  elevatorID,
+						Elevator:    minElevator}
+				}
 			}
 		case elevatorNetwork := <-elevatorNetworkUpdateCh:
 
@@ -81,6 +91,7 @@ func CalculateCost(elevator Elevator, newOrder elevio.ButtonEvent) int {
 }
 
 func findMinCostElevator(elevatorNetwork [NUM_ELEVATORS]Elevator, order elevio.ButtonEvent) (elevatorID string, elevator Elevator) {
+	//Ta in local id slik at i tilfelle der alle e unavailable vil den locale få
 	minCost := MAX_COST
 	for id := 0; id < NUM_ELEVATORS; id++ {
 		cost := MAX_COST
