@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"time"
 )
 
@@ -43,15 +42,11 @@ func NetworkTransceiver(
 		select {
 		case msg := <-networkMessageRx:
 			if msg.SenderID != localID {
-				// Some way ignore acks if you do not want acks
-
-				fmt.Println("Received message with type: ", msg.MessageType, "iteration: ", msg.Iter, "from ", msg.SenderID)
 				if msg.MessageType == MT_Acknowledge {
 					_, exists := messageAcknowledgements[msg.Iter]
 					if exists {
 						messageAcknowledgements[msg.Iter] = messageAcknowledgements[msg.Iter] + 1
 						if messageAcknowledgements[msg.Iter] == numOtherPeers {
-							fmt.Println("This message has been acknowledged")
 							delete(lastTransmittedMessages, msg.Iter)
 							delete(messageAcknowledgements, msg.Iter)
 						}
@@ -72,6 +67,7 @@ func NetworkTransceiver(
 				ElevatorID:  localID,
 				Elevator:    elevator,
 				Iter:        iteration}
+
 			updateElevatorNetworkCh <- msg
 
 			if numOtherPeers > 0 {
@@ -106,13 +102,11 @@ func NetworkTransceiver(
 			}
 
 		case <-resendMessages:
-			fmt.Println("Resend")
 			if len(lastTransmittedMessages) > 0 {
 				for iter, msg := range lastTransmittedMessages {
 					messageAcknowledgements[iter] = 0
 					networkMessageTx <- msg
 					resendMessages = time.After(TIME_TO_RESEND * time.Millisecond)
-					fmt.Println("Resendt message with type: ", msg.MessageType, "iteration: ", iter)
 					break
 				}
 			} else {
@@ -121,7 +115,6 @@ func NetworkTransceiver(
 
 		case np := <-numPeers:
 			numOtherPeers = np - 1
-			fmt.Println("Num other peers: ", numOtherPeers)
 		}
 	}
 }
