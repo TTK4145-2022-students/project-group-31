@@ -9,7 +9,6 @@ import (
 
 func ElevatorNetwork(
 	localID string,
-	initialLocalElevator Elevator,
 	updateElevatorNetworkCh <-chan NetworkMessage,
 	peerUpdateCh <-chan peers.PeerUpdate,
 	reconnectedElevator chan<- NetworkMessage,

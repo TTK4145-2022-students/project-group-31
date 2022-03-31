@@ -4,14 +4,10 @@ import (
 	"Driver-go/elevio"
 	"Network-go/network/bcast"
 	"Network-go/network/peers"
-	"math/rand"
 	"os"
-	"time"
 )
 
 func main() {
-
-	rand.Seed(time.Now().UnixNano())
 
 	//Initialize with id of the local elevator and a port. Use physical elevator if no simulator port is given
 	localID := os.Args[1]
@@ -34,7 +30,7 @@ func main() {
 	networkMessageTx := make(chan NetworkMessage, 10)
 	networkMessageRx := make(chan NetworkMessage, 10)
 
-	initialElevator := make(chan Elevator)
+	elevatorInitialized := make(chan bool)
 	elevatorStateChangeCh := make(chan Elevator)
 
 	elevatorNetworkUpdateCh := make(chan [NUM_ELEVATORS]Elevator, 1)
@@ -53,10 +49,10 @@ func main() {
 		drv_floors,
 		drv_obstr,
 		addLocalOrder,
-		initialElevator,
+		elevatorInitialized,
 		elevatorStateChangeCh)
 	//Waits for the Elevator to be initialized before starting the other go routines
-	initialLocalElevator := <-initialElevator //Currently unused delete if not used under packetlossdqwe
+	<-elevatorInitialized
 
 	go bcast.Transmitter(TRANSCEIVER_PORT, networkMessageTx)
 	go bcast.Receiver(TRANSCEIVER_PORT, networkMessageRx)
@@ -83,7 +79,6 @@ func main() {
 
 	go ElevatorNetwork(
 		localID,
-		initialLocalElevator,
 		updateElevatorNetworkCh,
 		peerUpdateCh,
 		reconnectedElevator,

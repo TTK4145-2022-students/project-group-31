@@ -75,7 +75,7 @@ func ElevatorFSM(
 	drv_floors <-chan int,
 	drv_obstr <-chan bool,
 	addLocalOrder <-chan elevio.ButtonEvent,
-	initialElevator chan<- Elevator,
+	elevatorInitialized chan<- bool,
 	elevatorStateChangeCh chan<- Elevator) {
 
 	var elevator Elevator
@@ -176,7 +176,7 @@ func ElevatorFSM(
 				elevio.SetMotorDirection(elevio.MD_Stop)
 				elevator.Behavior = EB_Idle
 				elevator.Direction = elevio.MD_Stop
-				initialElevator <- elevator
+				elevatorInitialized <- true
 			}
 			elevatorStateChangeCh <- elevator
 
