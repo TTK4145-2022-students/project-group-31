@@ -9,15 +9,16 @@ import (
 
 func main() {
 
-	//Initialize with id of the local elevator and a port. Use physical elevator if no simulator port is given
 	localID := os.Args[1]
+
+	port := "15657"
+
 	if len(os.Args) > 2 {
-		port := os.Args[2]
-		addr := "localhost:" + port
-		elevio.Init(addr, NUM_FLOORS)
-	} else {
-		elevio.Init("localhost:15657", NUM_FLOORS)
+		port = os.Args[2]
 	}
+
+	addr := "localhost:" + port
+	elevio.Init(addr, NUM_FLOORS)
 
 	drv_buttons := make(chan elevio.ButtonEvent)
 	drv_floors := make(chan int)
@@ -51,6 +52,7 @@ func main() {
 		addLocalOrder,
 		elevatorInitialized,
 		elevatorStateChangeCh)
+
 	//Waits for the Elevator to be initialized before starting the other go routines
 	<-elevatorInitialized
 
