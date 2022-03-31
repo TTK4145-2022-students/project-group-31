@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"math/rand"
 	"time"
 )
 
@@ -43,12 +42,7 @@ func NetworkTransceiver(
 	for {
 		select {
 		case msg := <-networkMessageRx:
-
-			v := rand.Intn(1)
-			if v == 1 {
-				fmt.Println("Packet is lost")
-			}
-			if msg.SenderID != localID && v != 1 {
+			if msg.SenderID != localID {
 				// Some way ignore acks if you do not want acks
 
 				fmt.Println("Received message with type: ", msg.MessageType, "iteration: ", msg.Iter, "from ", msg.SenderID)

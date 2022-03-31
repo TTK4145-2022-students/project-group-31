@@ -77,6 +77,7 @@ func ElevatorNetwork(
 
 				isLost[id] = false
 			}
+
 			if len(p.Lost) > 0 {
 				for _, lost := range p.Lost {
 					id, _ := strconv.Atoi(lost)
@@ -84,6 +85,11 @@ func ElevatorNetwork(
 					isLost[id] = true
 				}
 				elevatorNetworkUpdateCh <- elevatorNetwork
+			}
+
+			if len(p.Peers) == 0 {
+				localIDInt, _ := strconv.Atoi(localID)
+				isLost[localIDInt] = false
 			}
 		}
 	}
