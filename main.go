@@ -25,7 +25,6 @@ func main() {
 	drv_obstr := make(chan bool)
 
 	peerUpdateCh := make(chan peers.PeerUpdate)
-	peerTxEnable := make(chan bool)
 	numPeers := make(chan int, 1)
 
 	networkMessageTx := make(chan NetworkMessage, 10)
@@ -58,7 +57,7 @@ func main() {
 	go bcast.Transmitter(TRANSCEIVER_PORT, networkMessageTx)
 	go bcast.Receiver(TRANSCEIVER_PORT, networkMessageRx)
 
-	go peers.Transmitter(PEERS_PORT, localID, peerTxEnable)
+	go peers.Transmitter(PEERS_PORT, localID)
 	go peers.Receiver(PEERS_PORT, peerUpdateCh)
 
 	go orderDistributor(
