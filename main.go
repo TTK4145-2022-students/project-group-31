@@ -25,7 +25,6 @@ func main() {
 	drv_obstr := make(chan bool)
 
 	peerUpdateCh := make(chan peers.PeerUpdate)
-	peerTxEnable := make(chan bool)
 	numPeers := make(chan int, 1)
 
 	networkMessageTx := make(chan NetworkMessage, 10)
@@ -34,7 +33,7 @@ func main() {
 	elevatorInitialized := make(chan bool)
 	elevatorStateChangeCh := make(chan Elevator)
 
-	elevatorNetworkUpdateCh := make(chan [NUM_ELEVATORS]Elevator, 1)
+	elevatorNetworkChangeCh := make(chan [NUM_ELEVATORS]Elevator, 1)
 
 	distributedOrderCh := make(chan NetworkMessage)
 	addLocalOrder := make(chan elevio.ButtonEvent)
@@ -53,19 +52,18 @@ func main() {
 		elevatorInitialized,
 		elevatorStateChangeCh)
 
-	//Waits for the Elevator to be initialized before starting the other go routines
 	<-elevatorInitialized
 
 	go bcast.Transmitter(TRANSCEIVER_PORT, networkMessageTx)
 	go bcast.Receiver(TRANSCEIVER_PORT, networkMessageRx)
 
-	go peers.Transmitter(PEERS_PORT, localID, peerTxEnable)
+	go peers.Transmitter(PEERS_PORT, localID)
 	go peers.Receiver(PEERS_PORT, peerUpdateCh)
 
 	go orderDistributor(
 		localID,
 		drv_buttons,
-		elevatorNetworkUpdateCh,
+		elevatorNetworkChangeCh,
 		addLocalOrder,
 		distributedOrderCh)
 
@@ -84,7 +82,7 @@ func main() {
 		updateElevatorNetworkCh,
 		peerUpdateCh,
 		reconnectedElevator,
-		elevatorNetworkUpdateCh,
+		elevatorNetworkChangeCh,
 		numPeers)
 
 	select {}

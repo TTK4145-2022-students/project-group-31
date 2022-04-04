@@ -2,14 +2,13 @@ package main
 
 import (
 	"Driver-go/elevio"
-	"fmt"
 	"strconv"
 )
 
 func orderDistributor(
 	localID string,
 	drv_buttons <-chan elevio.ButtonEvent,
-	elevatorNetworkUpdateCh <-chan [NUM_ELEVATORS]Elevator,
+	elevatorNetworkChangeCh <-chan [NUM_ELEVATORS]Elevator,
 	addLocalOrder chan<- elevio.ButtonEvent,
 	distributedOrderCh chan<- NetworkMessage) {
 	var elevatorNetworkCopy [NUM_ELEVATORS]Elevator
@@ -27,8 +26,6 @@ func orderDistributor(
 					Elevator:    elevator}
 			} else {
 				elevatorID, minElevator := findMinCostElevator(elevatorNetworkCopy, btn)
-				fmt.Println("Elevator: ", elevatorID, "received the order")
-
 				if minElevator.Behavior != EB_Unavailable {
 					distributedOrderCh <- NetworkMessage{
 						SenderID:    localID,
@@ -37,12 +34,11 @@ func orderDistributor(
 						Elevator:    minElevator}
 				}
 			}
-		case elevatorNetwork := <-elevatorNetworkUpdateCh:
+		case elevatorNetwork := <-elevatorNetworkChangeCh:
 
 			for id := 0; id < NUM_ELEVATORS; id++ {
 				if elevatorNetwork[id].Behavior == EB_Unavailable && elevatorNetworkCopy[id].Behavior != EB_Unavailable {
 					elevatorNetwork = redistributeHallOrders(elevatorNetwork, id)
-					fmt.Println("Redistributed")
 				}
 			}
 
@@ -76,9 +72,10 @@ func CalculateCost(elevator Elevator, newOrder elevio.ButtonEvent) int {
 	case EB_DoorOpen:
 		duration -= ELEVATOR_DOOR_OPEN_COST / 2
 	}
+
 	for {
 		if ShouldStop(elevator) {
-			clearAtCurrentFloor(&elevator)
+			elevator.clearAtCurrentFloor()
 			duration += ELEVATOR_DOOR_OPEN_COST
 			elevator.Direction, _ = ChooseDirection(elevator)
 			if elevator.Direction == elevio.MD_Stop {
@@ -90,21 +87,24 @@ func CalculateCost(elevator Elevator, newOrder elevio.ButtonEvent) int {
 	}
 }
 
-func findMinCostElevator(elevatorNetwork [NUM_ELEVATORS]Elevator, order elevio.ButtonEvent) (elevatorID string, elevator Elevator) {
-	//Ta in local id slik at i tilfelle der alle e unavailable vil den locale få
+func findMinCostElevator(
+	elevatorNetwork [NUM_ELEVATORS]Elevator,
+	order elevio.ButtonEvent) (
+	elevatorID string,
+	elevator Elevator) {
+
 	minCost := MAX_COST
 	for id := 0; id < NUM_ELEVATORS; id++ {
 		cost := MAX_COST
 		if elevatorNetwork[id].Behavior == EB_Unavailable {
-			fmt.Println("This cost is unavailable")
 		} else {
 			cost = CalculateCost(elevatorNetwork[id], order)
 		}
+
 		if cost < minCost {
 			minCost = cost
 			elevatorID = strconv.Itoa(id)
 		}
-		fmt.Println("Cost of Elevator ", id, ": ", cost)
 	}
 	id, _ := strconv.Atoi(elevatorID)
 	elevator = elevatorNetwork[id]
@@ -115,13 +115,9 @@ func findMinCostElevator(elevatorNetwork [NUM_ELEVATORS]Elevator, order elevio.B
 func redistributeHallOrders(elevatorNetwork [NUM_ELEVATORS]Elevator, unavailableID int) [NUM_ELEVATORS]Elevator {
 	for floor := 0; floor < NUM_FLOORS; floor++ {
 		for btn := elevio.ButtonType(0); btn < NUM_BUTTONS-1; btn++ {
-
 			order := elevio.ButtonEvent{Floor: floor, Button: btn}
-
 			if elevatorNetwork[unavailableID].Orders[floor][btn] {
-
 				elevatorID, minElevator := findMinCostElevator(elevatorNetwork, order)
-				fmt.Println("Elevator: ", elevatorID, "received the order: ", order.Floor, "-", order.Button)
 				id, _ := strconv.Atoi(elevatorID)
 				elevatorNetwork[id] = minElevator
 				elevatorNetwork[unavailableID].RemoveOrder(order)
